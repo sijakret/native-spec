@@ -97,8 +97,10 @@ describe("spec viewer project discovery", () => {
 describe("spec viewer rendering", () => {
   it("renders a landing page with metrics and links to every artifact", () => {
     const html = renderSpecPanel(buildGraph(project), project);
-    expect(html).toContain('aria-label="Specification"');
-    expect(html).toContain('href="#spec-overview" aria-current="page"');
+    expect(html).toContain('aria-label="Breadcrumb"');
+    expect(html).toContain('<span aria-current="page">Overview</span>');
+    expect(html).not.toContain("spec-navigation");
+    expect(html).not.toContain("data-toggle-navigation");
     expect(html).toContain("Browse specification");
     expect(html).toContain(`<dd>${project.artifacts.length}</dd>`);
     expect(html).not.toContain("<article");
@@ -106,17 +108,19 @@ describe("spec viewer rendering", () => {
       expect(html).toContain(`href="#${artifactAnchor(artifact)}"`);
   });
 
-  it("keeps global navigation while marking the current artifact", () => {
+  it("keeps overview breadcrumbs and relation links without a sidebar", () => {
     const html = renderSpecPanel(buildGraph(project), project, [fullTextSearch]);
-    expect(html).toContain('href="#req-sr-001" aria-current="page"');
+    expect(html).toContain('href="#spec-overview"');
+    expect(html).toContain('<span aria-current="page">REQ-SR-001</span>');
     expect(html.match(/aria-current="page"/g)).toHaveLength(1);
     expect(html).toContain('<article id="req-sr-001">');
+    expect(html).toContain('href="#req-mr-001"');
     expect(html).not.toContain("Browse specification");
-    for (const artifact of project.artifacts)
-      expect(html).toContain(`href="#${artifactAnchor(artifact)}"`);
+    expect(html).not.toContain("spec-navigation");
+    expect(html).not.toContain("data-toggle-navigation");
   });
 
-  it("uses unsaved titles in navigation and escapes project and artifact text", () => {
+  it("uses unsaved titles and escapes project and artifact text", () => {
     const html = renderSpecPanel(
       buildGraph(project),
       { ...project, title: '<Project "notes">' },
@@ -124,7 +128,7 @@ describe("spec viewer rendering", () => {
     );
     expect(html).toContain("&lt;Project &quot;notes&quot;&gt;");
     expect(html).toContain(
-      '<span class="spec-nav-title">Search &lt;notes&gt; &amp; &quot;thoughts&quot;</span>',
+      '<span data-path="title">Search &lt;notes&gt; &amp; &quot;thoughts&quot;</span>',
     );
     expect(html).not.toContain("<notes>");
   });
@@ -147,7 +151,7 @@ describe("spec viewer rendering", () => {
     const html = renderSpecPanel(buildGraph(empty), empty);
     expect(html).toContain("No artifacts yet.");
     expect(html).toContain('<dd>0</dd>');
-    expect(html).toContain('href="#spec-overview" aria-current="page"');
+    expect(html).toContain('<span aria-current="page">Overview</span>');
   });
 
   it("renders saved, unsaved, and index documents using the project's toolchain", () => {

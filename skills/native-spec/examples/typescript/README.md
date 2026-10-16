@@ -72,8 +72,8 @@ specs/
 
 - Install: `npm install --prefix specs/utils/spec-viewer && npm run install:local --prefix specs/utils/spec-viewer` (needs the `code` CLI on PATH), then reload the window.
 - Open the landing page with **Native Spec: Open Overview** in the Command Palette, or open `specs/artifacts/index.ts`. It shows project context, metrics, diagrams, and a directory of all artifacts.
-- Every page has collapsible navigation grouped by the model's artifact kinds, a highlighted current item, and an Overview link. Navigation and relation links open artifacts in the custom editor.
-- The panel uses VS Code's fonts, theme colors, selection, and focus styles, including light, dark, and high-contrast themes. Mermaid diagrams follow live theme changes. Navigation collapses initially in narrow editors and can be toggled from the toolbar.
+- Every page has a compact breadcrumb header linking back to the overview, with no sidebar. Browse artifacts by kind on the landing page; artifact and relation links open in the custom editor.
+- The panel uses VS Code's fonts, theme colors, and focus styles, including light, dark, and high-contrast themes. Mermaid diagrams follow live theme changes, and the layout adapts to narrow editors.
 - Debug: build with `npm run build --prefix specs/utils/spec-viewer` and launch an Extension Host with `--extensionDevelopmentPath=<repo>/specs/utils/spec-viewer` (see the example's `.vscode` folder).
 - Browser preview: `npm run dev --prefix specs/utils/spec-viewer`. It uses the same landing page and artifact navigation, with read-only content.
 - The viewer finds the nearest enclosing spec project (`definition/project.ts`), including examples nested in a larger workspace. `nativeSpec.specsFolder` (default `specs`) is a workspace-relative fallback. Worker and edit dependencies resolve from the spec project.

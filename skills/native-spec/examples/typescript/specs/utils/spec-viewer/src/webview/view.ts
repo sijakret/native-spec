@@ -7,52 +7,8 @@ export async function mount(
   container: HTMLElement,
   html: string,
 ): Promise<void> {
-  const collapsedGroups = new Set(
-    Array.from(
-      container.querySelectorAll("details.spec-nav-group:not([open]) summary"),
-      (summary) => summary.getAttribute("title"),
-    ),
-  );
   container.classList.remove("editable");
   container.innerHTML = html;
-  for (const group of container.querySelectorAll<HTMLDetailsElement>(
-    ".spec-nav-group",
-  )) {
-    if (
-      collapsedGroups.has(
-        group.querySelector("summary")?.getAttribute("title") ?? null,
-      )
-    )
-      group.open = false;
-  }
-
-  const toggle = container.querySelector<HTMLButtonElement>(
-    "[data-toggle-navigation]",
-  );
-  const navigation = container.querySelector<HTMLElement>("#spec-navigation");
-  const panel = container.querySelector<HTMLElement>(".spec-panel");
-  if (toggle && navigation && panel) {
-    const setCollapsed = (collapsed: boolean): void => {
-      container.dataset.navigationCollapsed = String(collapsed);
-      navigation.hidden = collapsed;
-      panel.classList.toggle("navigation-collapsed", collapsed);
-      toggle.setAttribute("aria-expanded", String(!collapsed));
-    };
-    setCollapsed(
-      container.dataset.navigationCollapsed === undefined
-        ? matchMedia("(max-width: 700px)").matches
-        : container.dataset.navigationCollapsed === "true",
-    );
-    toggle.addEventListener("click", () => setCollapsed(!navigation.hidden));
-    navigation.addEventListener("click", (event) => {
-      if (
-        event.target instanceof Element &&
-        event.target.closest("a") &&
-        matchMedia("(max-width: 700px)").matches
-      )
-        setCollapsed(true);
-    });
-  }
 
   for (const code of container.querySelectorAll<HTMLElement>(
     "code.language-mermaid",
