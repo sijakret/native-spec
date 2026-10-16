@@ -12,9 +12,9 @@ Modeling your specification within your native toolchain has a lot of benefits.
 
 - **Checked traceability.** Native compiler checks & analysis catch missing required links and references to missing artifacts. No separate schema, parser, or custom format.
 - **Next to no overhead.** Your editor, compiler, tests, and git are the spec infrastructure: autocomplete, go-to-definition, rename, and review all just work.
+- **Zero Lock-in.** No additional vendors or tools required.
 - **Agent-ready.** Specs live in git beside the code, so agents read and update them in the same diff as the implementation, in lock step.
-- **Any format on demand.** Markdown and HTML can be forward-rendered from the graph. Never hand-maintained, never stale.
-- **Native process definition.** Expressing your process relations within your language raises process transparency significantly. It's all right there.
+- **Any format on demand.** Markdown and HTML can trivially be forward-rendered from the graph. Never hand-maintained, never stale.
 
 Intuitively this is some sort of optimum. Zero additional tooling is needed and programming language typically have very sharp and compact semantics to express data shapes & relations. It is probably very hard to achieve the same level of expressiveness and traceability with less ressources.
 
