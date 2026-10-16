@@ -118,7 +118,96 @@ export function renderArtifactFragment(
   return `${lines.join("\n")}\n`;
 }
 
-function renderProjectOverview(lines: string[], project: SpecProject): void {
+export function renderSpecPanel(
+  graph: SpecGraph,
+  project: SpecProject,
+  artifacts?: readonly Artifact[],
+): string {
+  const current = artifacts?.length === 1 ? artifacts[0] : undefined;
+  const updates = new Map(
+    (artifacts ?? []).map((artifact) => [artifactKey(artifact), artifact]),
+  );
+  const groups = sections.flatMap((section) => {
+    const members = project.artifacts
+      .filter((artifact) => artifact.kind === section.kind)
+      .map((artifact) => updates.get(artifactKey(artifact)) ?? artifact);
+    return members.length ? [{ ...section, artifacts: members }] : [];
+  });
+  const overview = artifacts === undefined;
+  const lines = [
+    '<div class="spec-panel">',
+    '  <a class="skip-link" href="#spec-content">Skip to content</a>',
+    '  <header class="spec-toolbar">',
+    '    <button class="icon-button" type="button" data-toggle-navigation aria-label="Toggle navigation" aria-controls="spec-navigation" aria-expanded="true" title="Toggle navigation">',
+    '      <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M2.5 2.5h11v11h-11zM6 3v10" fill="none" stroke="currentColor"/></svg>',
+    "    </button>",
+    '    <nav class="spec-breadcrumbs" aria-label="Breadcrumb">',
+    `      <a href="#spec-overview">${escapeHtml(project.title)}</a>`,
+    '      <span class="breadcrumb-separator" aria-hidden="true">/</span>',
+    `      <span>${escapeHtml(current?.id ?? (overview ? "Overview" : "Artifacts"))}</span>`,
+    "    </nav>",
+    '    <span class="spec-toolbar-label">Specification</span>',
+    "  </header>",
+    '  <nav id="spec-navigation" class="spec-navigation" aria-label="Specification">',
+    '    <div class="spec-navigation-heading">Explorer</div>',
+    `    <a class="overview-link" href="#spec-overview"${overview ? ' aria-current="page"' : ""}>Overview</a>`,
+  ];
+  for (const group of groups) {
+    lines.push(
+      '    <details class="spec-nav-group" open>',
+      `      <summary title="${escapeAttribute(group.title)}"><span>${escapeHtml(group.title)}</span><span class="count-badge">${group.artifacts.length}</span></summary>`,
+      "      <ul>",
+    );
+    for (const artifact of group.artifacts) {
+      const selected =
+        current && artifactKey(artifact) === artifactKey(current);
+      lines.push(
+        `        <li><a href="#${artifactAnchor(artifact)}"${selected ? ' aria-current="page"' : ""} title="${escapeAttribute(`${artifact.id} - ${artifact.title}`)}"><span class="spec-nav-id">${escapeHtml(artifact.id)}</span><span class="spec-nav-title">${escapeHtml(artifact.title)}</span></a></li>`,
+      );
+    }
+    lines.push("      </ul>", "    </details>");
+  }
+  lines.push(
+    "  </nav>",
+    '  <main id="spec-content" class="spec-content" tabindex="-1">',
+    '    <div class="spec-document">',
+  );
+  if (overview) {
+    renderProjectOverview(lines, project, false);
+    lines.push(
+      '<section class="spec-catalog" aria-labelledby="spec-catalog-title">',
+      '  <h2 id="spec-catalog-title">Browse specification</h2>',
+      '  <div class="spec-catalog-groups">',
+    );
+    for (const group of groups) {
+      lines.push(
+        "    <section>",
+        `      <h3>${escapeHtml(group.title)} <span class="count-badge">${group.artifacts.length}</span></h3>`,
+        "      <ul>",
+      );
+      for (const artifact of group.artifacts)
+        lines.push(`        <li>${artifactLink(artifact)}</li>`);
+      lines.push("      </ul>", "    </section>");
+    }
+    if (groups.length === 0) {
+      lines.push(
+        '    <p class="empty-state">No artifacts yet. Add artifacts to the project to see them here.</p>',
+      );
+    }
+    lines.push("  </div>", "</section>");
+  } else {
+    for (const artifact of artifacts)
+      renderArtifactArticle(lines, graph, artifact, 0);
+  }
+  lines.push("    </div>", "  </main>", "</div>");
+  return `${lines.join("\n")}\n`;
+}
+
+function renderProjectOverview(
+  lines: string[],
+  project: SpecProject,
+  includeBreakdown = true,
+): void {
   const requirements = project.artifacts.filter(
     (artifact): artifact is Requirement => "acceptanceCriteria" in artifact,
   );
@@ -140,6 +229,13 @@ function renderProjectOverview(lines: string[], project: SpecProject): void {
     `    <div><dt>Acceptance criteria</dt><dd>${criteria}</dd></div>`,
     `    <div><dt>Relations</dt><dd>${project.relations.length}</dd></div>`,
     "  </dl>",
+  );
+  if (!includeBreakdown) {
+    renderCodeBlocks(lines, project.overview?.diagrams, 2);
+    lines.push("</header>");
+    return;
+  }
+  lines.push(
     '  <div class="spec-breakdown">',
     "    <section><h2>Artifact types</h2><ul>",
   );

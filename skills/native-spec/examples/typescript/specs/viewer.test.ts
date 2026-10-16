@@ -10,6 +10,11 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { fullTextSearch } from "./artifacts/index.js";
+import { buildGraph } from "./definition/engine.js";
+import project from "./definition/project.js";
+import { renderSpecPanel } from "./utils/output/html.js";
+import { artifactAnchor } from "./utils/output/rendering.js";
 import { findSpecsDirectory } from "./utils/spec-viewer/src/project.js";
 
 describe("spec viewer project discovery", () => {
@@ -90,6 +95,61 @@ describe("spec viewer project discovery", () => {
 });
 
 describe("spec viewer rendering", () => {
+  it("renders a landing page with metrics and links to every artifact", () => {
+    const html = renderSpecPanel(buildGraph(project), project);
+    expect(html).toContain('aria-label="Specification"');
+    expect(html).toContain('href="#spec-overview" aria-current="page"');
+    expect(html).toContain("Browse specification");
+    expect(html).toContain(`<dd>${project.artifacts.length}</dd>`);
+    expect(html).not.toContain("<article");
+    for (const artifact of project.artifacts)
+      expect(html).toContain(`href="#${artifactAnchor(artifact)}"`);
+  });
+
+  it("keeps global navigation while marking the current artifact", () => {
+    const html = renderSpecPanel(buildGraph(project), project, [fullTextSearch]);
+    expect(html).toContain('href="#req-sr-001" aria-current="page"');
+    expect(html.match(/aria-current="page"/g)).toHaveLength(1);
+    expect(html).toContain('<article id="req-sr-001">');
+    expect(html).not.toContain("Browse specification");
+    for (const artifact of project.artifacts)
+      expect(html).toContain(`href="#${artifactAnchor(artifact)}"`);
+  });
+
+  it("uses unsaved titles in navigation and escapes project and artifact text", () => {
+    const html = renderSpecPanel(
+      buildGraph(project),
+      { ...project, title: '<Project "notes">' },
+      [{ ...fullTextSearch, title: 'Search <notes> & "thoughts"' }],
+    );
+    expect(html).toContain("&lt;Project &quot;notes&quot;&gt;");
+    expect(html).toContain(
+      '<span class="spec-nav-title">Search &lt;notes&gt; &amp; &quot;thoughts&quot;</span>',
+    );
+    expect(html).not.toContain("<notes>");
+  });
+
+  it("only shows artifact kinds present in a tailored model", () => {
+    const tailored = {
+      ...project,
+      artifacts: [fullTextSearch],
+      relations: [],
+    };
+    const html = renderSpecPanel(buildGraph(tailored), tailored);
+    expect(html).toContain("Software Requirements");
+    expect(html).not.toContain("Market Requirements");
+    expect(html).not.toContain("Risks");
+    expect(html).not.toContain("Sprints");
+  });
+
+  it("provides an empty landing page before any artifacts exist", () => {
+    const empty = { id: "empty", title: "Empty spec", artifacts: [], relations: [] };
+    const html = renderSpecPanel(buildGraph(empty), empty);
+    expect(html).toContain("No artifacts yet.");
+    expect(html).toContain('<dd>0</dd>');
+    expect(html).toContain('href="#spec-overview" aria-current="page"');
+  });
+
   it("renders saved, unsaved, and index documents using the project's toolchain", () => {
     const specs = import.meta.dirname;
     const file = join(
@@ -114,7 +174,11 @@ describe("spec viewer rendering", () => {
     ];
     const result = spawnSync(
       process.execPath,
-      [require.resolve("tsx/cli"), join(specs, "utils/spec-viewer/src/render.ts"), project],
+      [
+        require.resolve("tsx/cli"),
+        join(specs, "utils/spec-viewer/src/render.ts"),
+        project,
+      ],
       {
         cwd: project,
         env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
@@ -142,6 +206,8 @@ describe("spec viewer rendering", () => {
     expect(responses[0]?.locations?.["req-sr-001"]).toBe(file);
     expect(responses[1]?.html).toContain("Unsaved search title");
     expect(responses[2]?.error).toContain("No artifact export found");
-    expect(responses[3]?.html).toContain('<article id="req-mr-001">');
+    expect(responses[0]?.locations?.["spec-overview"]).toBe(index);
+    expect(responses[3]?.html).toContain("Browse specification");
+    expect(responses[3]?.html).not.toContain("<article");
   });
 });

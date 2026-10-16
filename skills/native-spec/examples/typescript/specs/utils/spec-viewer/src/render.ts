@@ -10,7 +10,9 @@ import { pathToFileURL } from "node:url";
 
 // Types come from the co-located spec project; the runtime modules are loaded from the configured folder.
 type Engine = typeof import("../../../definition/engine.js");
-type Project = typeof import("../../../definition/project.js");
+type Project = {
+  readonly default: import("../../../definition/engine.js").SpecProject;
+};
 type Html = typeof import("../../output/html.js");
 type Rendering = typeof import("../../output/rendering.js");
 type Artifact = import("../../../definition/engine.js").Artifact;
@@ -33,14 +35,16 @@ const ts = createRequire(join(specs, "package.json"))(
 
 const { buildGraph } = await load<Engine>("definition/engine.ts");
 const { default: project } = await load<Project>("definition/project.ts");
-const { renderArtifactFragment } = await load<Html>("utils/output/html.ts");
+const { renderSpecPanel } = await load<Html>("utils/output/html.ts");
 const { artifactAnchor } = await load<Rendering>("utils/output/rendering.ts");
 
 const artifactsDir = join(specs, "artifacts");
 const artifactFilename = /\.(?:abb|mr|sr|nfr|tc|risk|sprint)\.ts$/;
 
 const graph = buildGraph(project);
-const locations: Record<string, string> = {};
+const locations: Record<string, string> = {
+  "spec-overview": join(artifactsDir, "index.ts"),
+};
 for (const entry of await readdir(artifactsDir, { recursive: true })) {
   if (!artifactFilename.test(entry)) continue;
   const file = join(artifactsDir, entry);
@@ -74,13 +78,14 @@ async function render(source: string, path: string): Promise<string> {
   const exported = Object.values(await importSource(source, path)).filter(
     isArtifact,
   );
-  if (exported.length === 0) {
+  const overview = path === join(artifactsDir, "index.ts");
+  if (exported.length === 0 && !(overview && project.artifacts.length === 0)) {
     throw new Error(`No artifact export found in ${path}`);
   }
-  return renderArtifactFragment(
+  return renderSpecPanel(
     graph,
-    exported,
-    path === join(artifactsDir, "index.ts") ? project : undefined,
+    project,
+    overview ? undefined : exported,
   );
 }
 

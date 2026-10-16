@@ -11,6 +11,13 @@
   },
   "main": "./dist/extension.cjs",
   "contributes": {
+    "commands": [
+      {
+        "command": "nativeSpec.openOverview",
+        "title": "Open Overview",
+        "category": "Native Spec"
+      }
+    ],
     "customEditors": [
       {
         "viewType": "nativeSpec.artifact",

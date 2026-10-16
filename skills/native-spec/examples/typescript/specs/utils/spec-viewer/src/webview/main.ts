@@ -1,4 +1,4 @@
-import { mount } from "./view.js";
+import { mount, showError } from "./view.js";
 import "./styles.css";
 
 declare function acquireVsCodeApi(): {
@@ -15,24 +15,29 @@ type HostMessage =
 
 const vscode = acquireVsCodeApi();
 const app = document.getElementById("app")!;
+let revision = 0;
 
 window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
   const message = event.data;
+  const current = ++revision;
   if (message.type === "render") {
-    void mount(app, message.html).then(() => {
-      if (message.editable) enableEditing(app);
-    });
+    void mount(app, message.html)
+      .then(() => {
+        if (current === revision && message.editable) enableEditing(app);
+      })
+      .catch((error: unknown) => {
+        if (current === revision) showError(app, error);
+      });
     return;
   }
-  const error = document.createElement("pre");
-  error.className = "error";
-  error.textContent = message.message;
-  app.replaceChildren(error);
+  showError(app, message.message);
 });
 
 function enableEditing(container: HTMLElement): void {
   container.classList.add("editable");
-  for (const field of container.querySelectorAll<HTMLElement>("[data-path]")) {
+  for (const field of container.querySelectorAll<HTMLElement>(
+    ".spec-content article [data-path]",
+  )) {
     if (field instanceof HTMLInputElement) {
       field.disabled = false;
       field.addEventListener("change", () =>
@@ -75,10 +80,12 @@ document.addEventListener("click", (event) => {
     'a[href^="#"]',
   );
   if (!link) return;
+  const anchor = link.getAttribute("href")!.slice(1);
+  if (anchor === "spec-content") return;
   event.preventDefault();
   vscode.postMessage({
     type: "open",
-    anchor: link.getAttribute("href")!.slice(1),
+    anchor,
   });
 });
 

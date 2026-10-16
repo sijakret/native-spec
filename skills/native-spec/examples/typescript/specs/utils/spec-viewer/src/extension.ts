@@ -36,6 +36,37 @@ export function activate(context: vscode.ExtensionContext): void {
     return renderer;
   };
   context.subscriptions.push(
+    vscode.commands.registerCommand("nativeSpec.openOverview", async () => {
+      const projects = await vscode.workspace.findFiles(
+        "**/definition/project.ts",
+        "**/{node_modules,dist}/**",
+      );
+      const items = projects.map((uri) => {
+        const directory = vscode.Uri.joinPath(uri, "..", "..");
+        return {
+          label: vscode.workspace.asRelativePath(directory),
+          uri: vscode.Uri.joinPath(directory, "artifacts", "index.ts"),
+        };
+      });
+      if (items.length === 0) {
+        void vscode.window.showErrorMessage(
+          "No Native Spec project found. Open a workspace containing definition/project.ts.",
+        );
+        return;
+      }
+      const selected =
+        items.length === 1
+          ? items[0]
+          : await vscode.window.showQuickPick(items, {
+              placeHolder: "Choose a specification",
+            });
+      if (selected)
+        await vscode.commands.executeCommand(
+          "vscode.openWith",
+          selected.uri,
+          viewType,
+        );
+    }),
     vscode.window.registerCustomEditorProvider(
       viewType,
       new ArtifactEditorProvider(context, rendererFor),
@@ -211,8 +242,13 @@ class ArtifactEditorProvider implements vscode.CustomTextEditorProvider {
           const file = locations[message.anchor];
           if (file) {
             await vscode.commands.executeCommand(
-              "vscode.open",
+              "vscode.openWith",
               vscode.Uri.file(file),
+              viewType,
+            );
+          } else {
+            void vscode.window.showErrorMessage(
+              `No source file found for spec link: ${message.anchor}`,
             );
           }
         }
@@ -300,11 +336,12 @@ function shell(webview: vscode.Webview, distUri: vscode.Uri): string {
 <html lang="en">
   <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta http-equiv="Content-Security-Policy" content="${csp}">
     <link rel="stylesheet" href="${style}">
   </head>
   <body>
-    <main id="app"></main>
+    <div id="app"></div>
     <script type="module" nonce="${nonce}" src="${script}"></script>
   </body>
 </html>`;
