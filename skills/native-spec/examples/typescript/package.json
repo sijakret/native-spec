@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "specs:check": "tsc -p specs/tsconfig.json",
-    "specs:test": "npm run specs:check && vitest run specs/engine.test.ts",
+    "specs:test": "npm run specs:check && vitest run specs/engine.test.ts specs/viewer.test.ts",
     "specs:render": "tsx specs/utils/cli.ts -- markdown",
     "viewer:install": "npm install --prefix specs/utils/spec-viewer && npm run install:local --prefix specs/utils/spec-viewer"
   },

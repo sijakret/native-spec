@@ -1,6 +1,6 @@
-# TypeScript Reference
+# TypeScript Example
 
-The [runnable example](../examples/typescript/) implements one possible model for a small notes app. Tailor its kinds, fields, relations, coverage rules, and sprint workflow even when staying in TypeScript. Its APIs, filenames, commands, and viewer are TypeScript-specific, not prerequisites for other ecosystems.
+This runnable example implements one possible model for a small notes app. Tailor its kinds, fields, relations, coverage rules, and sprint workflow even when staying in TypeScript. Its APIs, filenames, commands, and viewer are TypeScript-specific, not prerequisites for other ecosystems.
 
 ## Implementation
 
@@ -37,22 +37,22 @@ specs/
   utils/output/                  views, Markdown and HTML renderers
   utils/cli.ts                   specs:render
   utils/spec-viewer/             VS Code extension (standalone npm package)
-  engine.test.ts, engine.type-test.ts, tsconfig.json
+  engine.test.ts, engine.type-test.ts, viewer.test.ts, tsconfig.json
 ```
 
 ## Bootstrap
 
-1. Copy `examples/typescript/specs/` from the skill to the repo root (or another folder; see viewer setting).
+1. Copy `specs/` from this example to the repo root (or another folder; see viewer setting).
 2. Add to the root `package.json` (merge; keep existing scripts):
    ```json
    "scripts": {
      "specs:check": "tsc -p specs/tsconfig.json",
-     "specs:test": "npm run specs:check && vitest run specs/engine.test.ts",
+     "specs:test": "npm run specs:check && vitest run specs/engine.test.ts specs/viewer.test.ts",
      "specs:render": "tsx specs/utils/cli.ts"
    },
    "devDependencies": { "@types/node": "*", "tsx": "*", "typescript": "*", "vitest": "*" }
    ```
-   The root must resolve `tsx` and `typescript`; the viewer loads both from the workspace. `specs/tsconfig.json` is standalone; exclude `specs/` from the app's tsconfig if its `include` would pick it up.
+   The spec project must resolve `tsx` and `typescript` from its containing package; the viewer loads both there. `specs/tsconfig.json` is standalone; exclude `specs/` from the app's tsconfig if its `include` would pick it up.
 3. Set the project id in `artifacts/factory.ts` and title/overview in `definition/project.ts`.
 4. Tailor the model and replace the example artifacts. If retaining the example model, follow the main skill's example greenfield or brownfield path: start with `SPRINT-0001`; use `planned` until implemented, or `completed` for a brownfield baseline with `implementation` recording the pre-existing state.
 5. Iterate on `npm run specs:check` until clean and `npm run specs:test` passes.
@@ -73,7 +73,7 @@ specs/
 - Install: `npm install --prefix specs/utils/spec-viewer && npm run install:local --prefix specs/utils/spec-viewer` (needs the `code` CLI on PATH), then reload the window.
 - Debug: build with `npm run build --prefix specs/utils/spec-viewer` and launch an Extension Host with `--extensionDevelopmentPath=<repo>/specs/utils/spec-viewer` (see the example's `.vscode` folder).
 - Browser preview of the whole spec: `npm run dev --prefix specs/utils/spec-viewer`.
-- Setting `nativeSpec.specsFolder` (default `specs`) locates `definition/project.ts`.
+- The viewer finds the nearest enclosing spec project (`definition/project.ts`), including examples nested in a larger workspace. `nativeSpec.specsFolder` (default `specs`) is a workspace-relative fallback. Worker and edit dependencies resolve from the spec project.
 - Use "Reopen Editor With… → Text Editor" for raw source.
 
 ## TypeScript Agent Instructions Snippet

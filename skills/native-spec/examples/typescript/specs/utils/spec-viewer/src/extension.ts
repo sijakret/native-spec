@@ -1,30 +1,15 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, relative } from "node:path";
 import { createInterface } from "node:readline";
 import type * as TS from "typescript";
 import * as vscode from "vscode";
 import { editArtifactSource, type PathSegment } from "./edits.js";
+import { findSpecsDirectory } from "./project.js";
 
 const viewType = "nativeSpec.artifact";
 const artifactFilename = /\.(?:abb|mr|sr|nfr|tc|risk|sprint)\.ts$/;
-
-// Absolute specs directory: the configured subfolder, or the root itself when the
-// spec project is opened directly as the workspace.
-function specsDir(root: string): string {
-  const configured = vscode.workspace
-    .getConfiguration("nativeSpec", vscode.Uri.file(root))
-    .get<string>("specsFolder", "specs");
-  const marker = join("definition", "project.ts");
-  for (const candidate of [join(root, configured), root]) {
-    if (existsSync(join(candidate, marker))) return candidate;
-  }
-  throw new Error(
-    `No spec project found: expected ${join(configured, marker)} under ${root}. Check the nativeSpec.specsFolder setting.`,
-  );
-}
 
 interface RenderResult {
   readonly html: string;
@@ -42,11 +27,11 @@ type WebviewMessage =
 
 export function activate(context: vscode.ExtensionContext): void {
   const renderers = new Map<string, Renderer>();
-  const rendererFor = (root: string): Renderer => {
-    let renderer = renderers.get(root);
+  const rendererFor = (specs: string): Renderer => {
+    let renderer = renderers.get(specs);
     if (!renderer) {
-      renderer = new Renderer(root, context.extensionPath);
-      renderers.set(root, renderer);
+      renderer = new Renderer(specs, context.extensionPath);
+      renderers.set(specs, renderer);
     }
     return renderer;
   };
@@ -69,7 +54,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 }
 
-// One tsx worker per workspace root; the spec graph loads once and stays warm between renders.
+// One tsx worker per spec project; the graph stays warm between renders.
 class Renderer {
   private child: ChildProcess | undefined;
   private nextId = 0;
@@ -79,7 +64,7 @@ class Renderer {
   >();
 
   constructor(
-    private readonly root: string,
+    private readonly specs: string,
     private readonly extensionPath: string,
   ) {}
 
@@ -105,12 +90,12 @@ class Renderer {
   }
 
   private start(): ChildProcess {
-    const tsx = workspaceRequire(this.root).resolve("tsx/cli");
+    const tsx = workspaceRequire(this.specs).resolve("tsx/cli");
     const child = spawn(
       process.execPath,
-      [tsx, join(this.extensionPath, "src", "render.ts"), specsDir(this.root)],
+      [tsx, join(this.extensionPath, "src", "render.ts"), this.specs],
       {
-        cwd: this.root,
+        cwd: this.specs,
         env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
         stdio: ["pipe", "pipe", "pipe"],
       },
@@ -147,7 +132,7 @@ class Renderer {
 class ArtifactEditorProvider implements vscode.CustomTextEditorProvider {
   constructor(
     private readonly context: vscode.ExtensionContext,
-    private readonly rendererFor: (root: string) => Renderer,
+    private readonly rendererFor: (specs: string) => Renderer,
   ) {}
 
   async resolveCustomTextEditor(
@@ -166,7 +151,11 @@ class ArtifactEditorProvider implements vscode.CustomTextEditorProvider {
     panel.webview.html = shell(panel.webview, distUri);
 
     const root = workspaceRoot(document.uri);
-    const renderer = this.rendererFor(root);
+    const configured = vscode.workspace
+      .getConfiguration("nativeSpec", document.uri)
+      .get<string>("specsFolder", "specs");
+    const specs = findSpecsDirectory(root, document.uri.fsPath, configured);
+    const renderer = this.rendererFor(specs);
     // Index modules re-export several artifacts and are browse-only.
     const editable =
       document.uri.scheme === "file" &&
@@ -196,7 +185,7 @@ class ArtifactEditorProvider implements vscode.CustomTextEditorProvider {
       timer = setTimeout(render, 150);
     };
 
-    const watchPattern = relative(root, specsDir(root));
+    const watchPattern = relative(root, specs);
     const watcher = vscode.workspace.createFileSystemWatcher(
       new vscode.RelativePattern(
         root,
@@ -229,7 +218,7 @@ class ArtifactEditorProvider implements vscode.CustomTextEditorProvider {
         }
         if (message.type === "edit" && editable) {
           try {
-            await applyEdit(root, document, message.path, message.value);
+            await applyEdit(specs, document, message.path, message.value);
           } catch (error) {
             void vscode.window.showErrorMessage(
               error instanceof Error ? error.message : String(error),
@@ -260,12 +249,12 @@ function workspaceRequire(root: string): NodeJS.Require {
 }
 
 async function applyEdit(
-  root: string,
+  specs: string,
   document: vscode.TextDocument,
   path: readonly PathSegment[],
   value: string | boolean,
 ): Promise<void> {
-  const ts = workspaceRequire(root)("typescript") as typeof TS;
+  const ts = workspaceRequire(specs)("typescript") as typeof TS;
   const change = editArtifactSource(ts, document.getText(), path, value);
   const edit = new vscode.WorkspaceEdit();
   edit.replace(
