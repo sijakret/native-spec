@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Native Spec Viewer",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/specs/utils/spec-viewer",
+        "${workspaceFolder}"
+      ],
+      "preLaunchTask": "spec-viewer: build"
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "name": "native-spec-viewer",
+  "displayName": "Native Spec Viewer",
+  "description": "Renders and edits TypeScript native spec artifacts in place.",
+  "version": "0.1.0",
+  "private": true,
+  "publisher": "native-spec",
+  "type": "module",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "main": "./dist/extension.cjs",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "nativeSpec.artifact",
+        "displayName": "Spec Artifact",
+        "selector": [
+          { "filenamePattern": "*.abb.ts" },
+          { "filenamePattern": "*.mr.ts" },
+          { "filenamePattern": "*.sr.ts" },
+          { "filenamePattern": "*.nfr.ts" },
+          { "filenamePattern": "*.tc.ts" },
+          { "filenamePattern": "*.risk.ts" },
+          { "filenamePattern": "*.sprint.ts" },
+          { "filenamePattern": "**/artifacts/**/index.ts" }
+        ],
+        "priority": "default"
+      }
+    ],
+    "configuration": {
+      "title": "Native Spec",
+      "properties": {
+        "nativeSpec.specsFolder": {
+          "type": "string",
+          "default": "specs",
+          "markdownDescription": "Workspace-relative folder of the native spec. It must contain `definition/project.ts` (default export), `artifacts/`, and `utils/output/`."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build --mode extension && vite build",
+    "lint": "tsc -p tsconfig.json",
+    "package": "npm run build && vsce package --no-dependencies --allow-missing-repository --skip-license -o dist/native-spec-viewer.vsix",
+    "install:local": "npm run package && code --install-extension dist/native-spec-viewer.vsix --force"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@types/vscode": "^1.100.0",
+    "@vscode/vsce": "^3.6.0",
+    "mermaid": "^11.12.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.2.2"
+  }
+}

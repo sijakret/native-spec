@@ -1,0 +1,17 @@
+{
+  "name": "native-spec-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "specs:check": "tsc -p specs/tsconfig.json",
+    "specs:test": "npm run specs:check && vitest run specs/engine.test.ts",
+    "specs:render": "tsx specs/utils/cli.ts -- markdown",
+    "viewer:install": "npm install --prefix specs/utils/spec-viewer && npm run install:local --prefix specs/utils/spec-viewer"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.2",
+    "vitest": "^4.1.11"
+  }
+}

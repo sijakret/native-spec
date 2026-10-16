@@ -1,0 +1,21 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "spec-viewer: build",
+      "type": "shell",
+      "command": "npm run build --prefix specs/utils/spec-viewer"
+    },
+    {
+      "label": "spec-viewer: install",
+      "detail": "Package the viewer as a .vsix and install it (reload the window afterwards)",
+      "type": "shell",
+      "command": "npm run viewer:install",
+      "options": {
+        "env": {
+          "PATH": "${env:PATH}:/Applications/Visual Studio Code.app/Contents/Resources/app/bin"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+# Ship only the bundles, the tsx worker source, and the manifest.
+**
+!dist/**
+!src/render.ts
+!package.json
+dist/*.vsix
