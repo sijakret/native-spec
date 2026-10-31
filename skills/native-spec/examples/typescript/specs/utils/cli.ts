@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { dirname, relative, resolve, sep } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import project from "../definition/project.js";
 import { renderHtml } from "./output/html.js";
@@ -40,10 +40,16 @@ export async function run(args: readonly string[]): Promise<void> {
     throw new Error("--stylesheet is available only for HTML output.");
   }
 
+  // Figures link relative to the written file (or the working directory for stdout).
+  const base = values.output ? dirname(resolve(values.output)) : process.cwd();
+  const figureHref = (url: string): string =>
+    url.startsWith("file:")
+      ? relative(base, fileURLToPath(url)).split(sep).map(encodeURIComponent).join("/")
+      : url;
   const output =
     format === "markdown"
-      ? renderMarkdown(project)
-      : renderHtml(project, { stylesheets: values.stylesheet });
+      ? renderMarkdown(project, { figureHref })
+      : renderHtml(project, { stylesheets: values.stylesheet, figureHref });
 
   if (values.output) {
     const outputPath = resolve(values.output);

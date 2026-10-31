@@ -1,27 +1,90 @@
-import { noteStore } from "./architecture/001-note-store.abb.js";
-import { captureAndFindNotes } from "./requirements/001-capture-and-find-notes.mr.js";
-import { privateByDefault } from "./requirements/001-private-by-default.nfr.js";
-import { fullTextSearch } from "./requirements/001-full-text-search.sr.js";
-import { plaintextLeak } from "./risks/001-plaintext-leak.risk.js";
-import { firstSliceSprint } from "./sprints/0001-first-slice.sprint.js";
-import { noteStoreSuite } from "./tests/001-note-store-suite.tc.js";
+import {
+  orderStates,
+  stockDomain,
+  stockDomainRelations,
+} from "./architecture/001-stock-domain.abb.js";
+import {
+  browserStorage,
+  browserStorageRelations,
+} from "./architecture/002-browser-storage.abb.js";
+import {
+  inventoryDesk,
+  inventoryDeskRelations,
+} from "./architecture/003-inventory-desk.abb.js";
+import {
+  codeTraceabilityAudit,
+  codeTraceabilityAuditRelations,
+} from "./architecture/004-code-traceability.abb.js";
+import { manageStock } from "./requirements/001-manage-stock.mr.js";
+import {
+  inventory,
+  inventoryRelations,
+} from "./requirements/001-inventory.sr.js";
+import {
+  orderLifecycle,
+  orderLifecycleRelations,
+} from "./requirements/002-order-lifecycle.sr.js";
+import {
+  localData,
+  localDataRelations,
+} from "./requirements/003-local-data.sr.js";
+import { cdnApp } from "./requirements/001-cdn-app.nfr.js";
+import { codeTraceability } from "./requirements/002-code-traceability.nfr.js";
+import {
+  invalidStock,
+  invalidStockRelations,
+} from "./risks/001-invalid-stock.risk.js";
+import {
+  firstSliceSprint,
+  firstSliceSprintRelations,
+} from "./sprints/0001-first-slice.sprint.js";
+import {
+  stockroomSuite,
+  stockroomSuiteRelations,
+} from "./tests/001-stockroom-suite.tc.js";
 
 export {
-  captureAndFindNotes,
+  stockDomain,
+  browserStorage,
+  inventoryDesk,
+  codeTraceabilityAudit,
+  manageStock,
+  inventory,
+  orderLifecycle,
+  localData,
+  cdnApp,
+  codeTraceability,
+  invalidStock,
   firstSliceSprint,
-  fullTextSearch,
-  noteStore,
-  noteStoreSuite,
-  plaintextLeak,
-  privateByDefault,
+  stockroomSuite,
+  orderStates,
 };
 
 export const artifacts = [
-  captureAndFindNotes,
-  fullTextSearch,
-  privateByDefault,
-  noteStore,
-  noteStoreSuite,
-  plaintextLeak,
+  manageStock,
+  inventory,
+  orderLifecycle,
+  localData,
+  cdnApp,
+  codeTraceability,
+  stockDomain,
+  browserStorage,
+  inventoryDesk,
+  codeTraceabilityAudit,
+  stockroomSuite,
+  invalidStock,
   firstSliceSprint,
+] as const;
+
+export const relations = [
+  ...inventoryRelations,
+  ...orderLifecycleRelations,
+  ...localDataRelations,
+  ...stockDomainRelations,
+  ...browserStorageRelations,
+  ...inventoryDeskRelations,
+  ...codeTraceabilityAuditRelations,
+  ...stockroomSuiteRelations,
+  ...invalidStockRelations,
+  ...firstSliceSprintRelations,
 ] as const;

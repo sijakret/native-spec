@@ -31,30 +31,189 @@ interface BaseArtifact<
   readonly title: string;
 }
 
-interface RequirementFields {
+export interface AcceptanceCriterion {
+  readonly id: string;
+  readonly description: string;
+}
+
+interface RequirementFields<
+  Criteria extends OneOrMore<AcceptanceCriterion> =
+    OneOrMore<AcceptanceCriterion>,
+> {
   readonly tags: OneOrMore<string>;
   readonly description: string;
-  readonly acceptanceCriteria: OneOrMore<string>;
+  readonly acceptanceCriteria: Criteria;
 }
 
 export type MarketRequirement<
   Project extends string = string,
   Id extends MarketRequirementId = MarketRequirementId,
-> = BaseArtifact<Project, "market-requirement", Id> & RequirementFields;
+  Criteria extends OneOrMore<AcceptanceCriterion> =
+    OneOrMore<AcceptanceCriterion>,
+> = BaseArtifact<Project, "market-requirement", Id> &
+  RequirementFields<Criteria>;
 
 export type SoftwareRequirement<
   Project extends string = string,
   Id extends SoftwareRequirementId = SoftwareRequirementId,
-> = BaseArtifact<Project, "software-requirement", Id> & RequirementFields;
+  Criteria extends OneOrMore<AcceptanceCriterion> =
+    OneOrMore<AcceptanceCriterion>,
+> = BaseArtifact<Project, "software-requirement", Id> &
+  RequirementFields<Criteria>;
 
 export type NonFunctionalRequirement<
   Project extends string = string,
   Id extends NonFunctionalRequirementId = NonFunctionalRequirementId,
-> = BaseArtifact<Project, "non-functional-requirement", Id> & RequirementFields;
+  Criteria extends OneOrMore<AcceptanceCriterion> =
+    OneOrMore<AcceptanceCriterion>,
+> = BaseArtifact<Project, "non-functional-requirement", Id> &
+  RequirementFields<Criteria>;
 
 export interface CodeBlock {
+  readonly title: string;
   readonly language: string;
   readonly source: string;
+}
+
+// An Excalidraw scene stored next to its module as `<module>.figure-NNN.excalidraw.svg`
+// (an SVG with the editable scene embedded). Create one with `figure()`.
+export interface Figure {
+  readonly title: string;
+  // Absolute URL of the sidecar file.
+  readonly excalidraw: string;
+  // Inline tokens for text fields: `${figure.ref}` links to it, `${figure.image}` embeds it.
+  readonly ref: string;
+  readonly image: string;
+}
+
+export interface ArchitectureDiagram extends CodeBlock {
+  readonly language: "mermaid";
+  readonly blocks: OneOrMore<ArchitectureBlock>;
+  readonly connections: readonly {
+    readonly from: ArchitectureBlock;
+    readonly to: ArchitectureBlock;
+    readonly label: string;
+    readonly dashed?: boolean;
+  }[];
+}
+
+export interface ArchitectureFigure extends Figure {
+  readonly blocks: OneOrMore<ArchitectureBlock>;
+}
+
+export type Diagram =
+  | CodeBlock
+  | Figure
+  | ArchitectureDiagram
+  | ArchitectureFigure;
+
+export function architectureFigure(
+  value: Figure,
+  blocks: OneOrMore<ArchitectureBlock>,
+): ArchitectureFigure {
+  return Object.freeze({ ...value, blocks });
+}
+
+export function architectureDiagram(
+  value: Pick<ArchitectureDiagram, "title" | "blocks" | "connections">,
+): ArchitectureDiagram {
+  return Object.freeze({
+    ...value,
+    language: "mermaid",
+    source: architectureDiagramSource(value),
+  });
+}
+
+function architectureDiagramSource(
+  value: Pick<ArchitectureDiagram, "blocks" | "connections">,
+): string {
+  const node = (block: ArchitectureBlock) => block.id.replaceAll("-", "_");
+  const label = (text: string) =>
+    text
+      .replaceAll("&", "#38;")
+      .replaceAll('"', "#34;")
+      .replaceAll("<", "#60;")
+      .replaceAll(">", "#62;")
+      .replace(/[\r\n]/g, " ");
+  return [
+    "flowchart LR",
+    ...value.blocks.map(
+      (block) => `  ${node(block)}["${label(`${block.id} - ${block.title}`)}"]`,
+    ),
+    ...value.connections.map(
+      (connection) =>
+        `  ${node(connection.from)} ${connection.dashed ? "-.->" : "-->"}|"${label(connection.label)}"| ${node(connection.to)}`,
+    ),
+  ].join("\n");
+}
+
+function isArchitectureDiagram(
+  diagram: Diagram,
+): diagram is ArchitectureDiagram | ArchitectureFigure {
+  return "blocks" in diagram;
+}
+
+export const figureSuffix = ".excalidraw.svg";
+
+// Markdown link/image syntax, restricted to `.excalidraw.svg` targets so plain text never matches.
+export const figureToken =
+  /(!?)\[((?:\\.|[^\\\]])*)\]\(<([^<>]+\.excalidraw\.svg)>\)/g;
+
+// `figure(import.meta.url, 1, "Order states")` in `001-stock-domain.abb.ts`
+// -> `001-stock-domain.abb.figure-001.excalidraw.svg` in the same folder.
+export function figure(
+  moduleUrl: string,
+  number: number,
+  title: string,
+): Figure {
+  if (!Number.isInteger(number) || number < 1 || number > 999)
+    throw new Error(`Figure number must be 1-999: ${number}`);
+  if (!title.trim()) throw new Error("Figure title is required.");
+  const url = new URL(moduleUrl);
+  const name = url.pathname
+    .split("/")
+    .pop()!
+    .replace(/\.[cm]?[jt]s$/, "");
+  const excalidraw = new URL(
+    `${name}.figure-${String(number).padStart(3, "0")}${figureSuffix}`,
+    url,
+  ).href;
+  const label = title.replace(/[\\[\]]/g, "\\$&");
+  return Object.freeze({
+    title,
+    excalidraw,
+    ref: `[${label}](<${excalidraw}>)`,
+    image: `![${label}](<${excalidraw}>)`,
+  });
+}
+
+export function isFigure(diagram: Diagram): diagram is Figure {
+  return "excalidraw" in diagram;
+}
+
+export type TextPart =
+  | string
+  | {
+      readonly embed: boolean;
+      readonly title: string;
+      readonly excalidraw: string;
+    };
+
+// Splits text into plain runs and `${figure.ref}` / `${figure.image}` tokens.
+export function figureParts(text: string): readonly TextPart[] {
+  const parts: TextPart[] = [];
+  let last = 0;
+  for (const match of text.matchAll(figureToken)) {
+    if (match.index > last) parts.push(text.slice(last, match.index));
+    parts.push({
+      embed: match[1] === "!",
+      title: match[2]!.replace(/\\(.)/g, "$1"),
+      excalidraw: match[3]!,
+    });
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
 }
 
 export type ArchitectureBlock<
@@ -64,8 +223,11 @@ export type ArchitectureBlock<
   readonly tags: OneOrMore<string>;
   readonly description: string;
   readonly responsibilities: OneOrMore<string>;
+  readonly summaryDiagram:
+    | Figure
+    | (CodeBlock & { readonly language: "mermaid" });
   readonly files?: OneOrMore<string>;
-  readonly diagrams?: OneOrMore<CodeBlock>;
+  readonly diagrams?: OneOrMore<Diagram>;
 };
 
 export type TestCase<
@@ -108,7 +270,7 @@ export type Sprint<
   readonly startDate?: string;
   readonly endDate?: string;
   readonly description: string;
-  readonly diagrams?: OneOrMore<CodeBlock>;
+  readonly diagrams?: OneOrMore<Diagram>;
   readonly interfaces?: OneOrMore<string>;
   readonly dependenciesAndRisks?: OneOrMore<string>;
   readonly verification?: OneOrMore<string>;
@@ -144,19 +306,28 @@ export function artifactFactory<const Project extends string>(
   ) => Object.freeze({ project, kind, ...value });
 
   return {
-    marketRequirement<const Id extends MarketRequirementId>(
-      value: ArtifactInput<MarketRequirement<Project, Id>>,
-    ): MarketRequirement<Project, Id> {
+    marketRequirement<
+      const Id extends MarketRequirementId,
+      const Criteria extends OneOrMore<AcceptanceCriterion>,
+    >(
+      value: ArtifactInput<MarketRequirement<Project, Id, Criteria>>,
+    ): MarketRequirement<Project, Id, Criteria> {
       return create("market-requirement", value);
     },
-    softwareRequirement<const Id extends SoftwareRequirementId>(
-      value: ArtifactInput<SoftwareRequirement<Project, Id>>,
-    ): SoftwareRequirement<Project, Id> {
+    softwareRequirement<
+      const Id extends SoftwareRequirementId,
+      const Criteria extends OneOrMore<AcceptanceCriterion>,
+    >(
+      value: ArtifactInput<SoftwareRequirement<Project, Id, Criteria>>,
+    ): SoftwareRequirement<Project, Id, Criteria> {
       return create("software-requirement", value);
     },
-    nonFunctionalRequirement<const Id extends NonFunctionalRequirementId>(
-      value: ArtifactInput<NonFunctionalRequirement<Project, Id>>,
-    ): NonFunctionalRequirement<Project, Id> {
+    nonFunctionalRequirement<
+      const Id extends NonFunctionalRequirementId,
+      const Criteria extends OneOrMore<AcceptanceCriterion>,
+    >(
+      value: ArtifactInput<NonFunctionalRequirement<Project, Id, Criteria>>,
+    ): NonFunctionalRequirement<Project, Id, Criteria> {
       return create("non-functional-requirement", value);
     },
     architectureBlock<const Id extends ArchitectureBlockId>(
@@ -224,20 +395,16 @@ export type Implements = DirectedRelation<
   >
 >;
 
+export type CriterionRef = ArtifactRef<
+  string,
+  Requirement["kind"],
+  Requirement["id"]
+> & { readonly criterion: string };
+
 export type Verifies = DirectedRelation<
   "verifies",
   ArtifactRef<string, "test-case", TestCaseId>,
-  ArtifactRef<
-    string,
-    | "market-requirement"
-    | "software-requirement"
-    | "non-functional-requirement"
-    | "risk",
-    | MarketRequirementId
-    | SoftwareRequirementId
-    | NonFunctionalRequirementId
-    | RiskId
-  >
+  CriterionRef | ArtifactRef<string, "risk", RiskId>
 >;
 
 export type Delivers = DirectedRelation<
@@ -293,9 +460,33 @@ export function implementsRequirement<
 
 export function verifies<
   const From extends TestCase,
-  const To extends Requirement<From["project"]> | Risk<From["project"]>,
->(from: From, to: To) {
-  return edge("verifies", from, to);
+  const To extends Requirement<From["project"]>,
+  const Criterion extends To["acceptanceCriteria"][number]["id"],
+>(
+  from: From,
+  to: To,
+  criterion: Criterion,
+): DirectedRelation<
+  "verifies",
+  RefOf<From>,
+  RefOf<To> & { readonly criterion: Criterion }
+>;
+export function verifies<
+  const From extends TestCase,
+  const To extends Risk<From["project"]>,
+>(from: From, to: To): DirectedRelation<"verifies", RefOf<From>, RefOf<To>>;
+export function verifies(
+  from: TestCase,
+  to: Requirement | Risk,
+  criterion?: string,
+) {
+  return to.kind === "risk"
+    ? edge("verifies", from, to)
+    : Object.freeze({
+        kind: "verifies" as const,
+        from: ref(from),
+        to: { ...ref(to), criterion },
+      });
 }
 
 export function delivers<
@@ -356,6 +547,21 @@ type EndpointKeys<Relations extends readonly Relation[]> =
         readonly to: infer To extends Identity;
       }
       ? Key<From> | Key<To>
+      : never
+    : never;
+type CriterionKeys<Artifacts extends readonly Artifact[]> =
+  Item<Artifacts> extends infer Value
+    ? Value extends Requirement
+      ? `${Key<Value>}:${Value["acceptanceCriteria"][number]["id"]}`
+      : never
+    : never;
+type VerifiedCriterionKeys<Relations extends readonly Relation[]> =
+  Item<Relations> extends infer Value
+    ? Value extends {
+        readonly kind: "verifies";
+        readonly to: infer To extends CriterionRef;
+      }
+      ? `${Key<To>}:${To["criterion"]}`
       : never
     : never;
 type Missing<
@@ -421,13 +627,17 @@ type StaticProblems<
       "Missing verifies source"
     >
   | Missing<
-      KeysOfKind<
-        Artifacts,
-        | "market-requirement"
-        | "software-requirement"
-        | "non-functional-requirement"
-        | "risk"
-      >,
+      CriterionKeys<Artifacts>,
+      VerifiedCriterionKeys<Relations>,
+      "Missing verifies target"
+    >
+  | Missing<
+      VerifiedCriterionKeys<Relations>,
+      CriterionKeys<Artifacts>,
+      "Missing acceptance criterion"
+    >
+  | Missing<
+      KeysOfKind<Artifacts, "risk">,
       TargetKeys<Relations, "verifies">,
       "Missing verifies target"
     >
@@ -470,7 +680,8 @@ export interface SpecProject<
   readonly title: string;
   readonly overview?: {
     readonly description: string;
-    readonly diagrams?: OneOrMore<CodeBlock>;
+    readonly intendedUses?: readonly string[];
+    readonly diagrams?: OneOrMore<Diagram>;
   };
   readonly artifacts: Artifacts;
   readonly relations: Relations;
@@ -509,14 +720,65 @@ export function buildGraph(project: SpecProject) {
 }
 
 export function validateProject(project: SpecProject): readonly string[] {
-  const problems: string[] = [];
+  const problems = diagramTitleProblems(
+    project.overview?.diagrams,
+    `project:${project.id}`,
+  );
+  problems.push(...architectureOverviewProblems(project));
   const artifactKeys = new Set<string>();
   const relationKeys = new Set<string>();
+  const criterionKeys = new Set<string>();
+  const verifiedCriteria = new Set<string>();
 
   for (const artifact of project.artifacts) {
     const key = artifactKey(artifact);
     if (artifactKeys.has(key)) problems.push(`Duplicate artifact: ${key}`);
     artifactKeys.add(key);
+    if ("acceptanceCriteria" in artifact) {
+      if (!artifact.acceptanceCriteria.length)
+        problems.push(`Acceptance criteria are required: ${key}`);
+      for (const criterion of artifact.acceptanceCriteria) {
+        const criterionKey = `${key}:${criterion.id}`;
+        if (
+          typeof criterion.id !== "string" ||
+          !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(criterion.id)
+        )
+          problems.push(`Invalid acceptance criterion ID: ${criterionKey}`);
+        if (
+          typeof criterion.description !== "string" ||
+          !criterion.description.trim()
+        )
+          problems.push(
+            `Acceptance criterion description is required: ${criterionKey}`,
+          );
+        if (criterionKeys.has(criterionKey))
+          problems.push(`Duplicate acceptance criterion: ${criterionKey}`);
+        criterionKeys.add(criterionKey);
+      }
+    }
+    if ("diagrams" in artifact)
+      problems.push(...diagramTitleProblems(artifact.diagrams, key));
+
+    if (artifact.kind === "architecture-block") {
+      if (!artifact.summaryDiagram)
+        problems.push(`Summary diagram is required: ${key}`);
+      else {
+        problems.push(
+          ...diagramTitleProblems(
+            [artifact.summaryDiagram],
+            `${key}.summaryDiagram`,
+          ),
+        );
+        if (
+          !isFigure(artifact.summaryDiagram) &&
+          (artifact.summaryDiagram.language !== "mermaid" ||
+            !artifact.summaryDiagram.source.trim())
+        )
+          problems.push(
+            `Summary diagram must be Excalidraw or nonempty Mermaid: ${key}`,
+          );
+      }
+    }
 
     if (artifact.kind === "sprint") {
       const tasks = flattenTasks([
@@ -540,15 +802,120 @@ export function validateProject(project: SpecProject): readonly string[] {
   for (const relation of project.relations) {
     const from = artifactKey(relation.from);
     const to = artifactKey(relation.to);
-    const key = `${relation.kind}:${from}:${to}`;
+    const criterion =
+      relation.kind === "verifies" && relation.to.kind !== "risk"
+        ? relation.to.criterion
+        : undefined;
+    const key = `${relation.kind}:${from}:${to}${criterion === undefined ? "" : `:${criterion}`}`;
     if (!artifactKeys.has(from))
       problems.push(`Missing relation source: ${from}`);
     if (!artifactKeys.has(to)) problems.push(`Missing relation target: ${to}`);
     if (relationKeys.has(key)) problems.push(`Duplicate relation: ${key}`);
     relationKeys.add(key);
+    if (relation.kind === "verifies" && relation.to.kind !== "risk") {
+      if (typeof criterion !== "string" || !criterion) {
+        problems.push(
+          `Verification must target an acceptance criterion: ${to}`,
+        );
+      } else {
+        const criterionKey = `${to}:${criterion}`;
+        if (!criterionKeys.has(criterionKey))
+          problems.push(`Missing acceptance criterion: ${criterionKey}`);
+        else if (
+          project.artifacts.some(
+            (artifact) =>
+              artifactKey(artifact) === from &&
+              artifact.kind === "test-case" &&
+              artifact.project === project.id &&
+              relation.from.project === project.id &&
+              relation.to.project === project.id,
+          )
+        )
+          verifiedCriteria.add(criterionKey);
+      }
+    }
   }
 
+  for (const key of criterionKeys)
+    if (!verifiedCriteria.has(key))
+      problems.push(`Missing verifies target: ${key}`);
+
   return problems;
+}
+
+function architectureOverviewProblems(project: SpecProject): string[] {
+  const blocks = project.artifacts.filter(
+    (artifact) => artifact.kind === "architecture-block",
+  );
+  const diagrams =
+    project.overview?.diagrams?.filter(isArchitectureDiagram) ?? [];
+  if (blocks.length && !diagrams.length)
+    return ["Architecture overview diagram is required."];
+
+  const problems: string[] = [];
+  const registered = new Map(
+    blocks.map((block) => [artifactKey(block), block]),
+  );
+  for (const diagram of diagrams) {
+    const seen = new Set<string>();
+    for (const block of diagram.blocks) {
+      const key = artifactKey(block);
+      const canonical = registered.get(key);
+      if (
+        !canonical ||
+        canonical.project !== block.project ||
+        block.project !== project.id
+      )
+        problems.push(
+          `Unknown architecture overview block: ${block.project}:${key}`,
+        );
+      else if (canonical.title !== block.title)
+        problems.push(`Stale architecture overview block title: ${key}`);
+      if (seen.has(key))
+        problems.push(`Duplicate architecture overview block: ${key}`);
+      seen.add(key);
+    }
+    for (const block of blocks)
+      if (!seen.has(artifactKey(block)))
+        problems.push(
+          `Missing architecture overview block: ${artifactKey(block)}`,
+        );
+    for (const connection of isFigure(diagram) ? [] : diagram.connections) {
+      for (const block of [connection.from, connection.to]) {
+        if (block.project !== project.id || !seen.has(artifactKey(block)))
+          problems.push(
+            `Architecture overview connection references an undeclared block: ${block.project}:${artifactKey(block)}`,
+          );
+      }
+    }
+    if (
+      !isFigure(diagram) &&
+      (diagram.language !== "mermaid" ||
+        diagram.source !== architectureDiagramSource(diagram))
+    )
+      problems.push(
+        `Architecture overview diagram source does not match its blocks and connections: ${diagram.title}`,
+      );
+  }
+  return problems;
+}
+
+function diagramTitleProblems(
+  diagrams: readonly Diagram[] | undefined,
+  owner: string,
+): string[] {
+  return (diagrams ?? []).flatMap((diagram, index) => [
+    ...(typeof diagram.title !== "string" || !diagram.title.trim()
+      ? [`Diagram title is required: ${owner}.diagrams[${index}]`]
+      : []),
+    ...("excalidraw" in diagram &&
+    (typeof diagram.excalidraw !== "string" ||
+      !diagram.excalidraw.endsWith(figureSuffix))
+      ? [
+          `Figure must reference a ${figureSuffix} file: ${owner}.diagrams[${index}]`,
+        ]
+      : []),
+  ]);
 }
 
 function flattenTasks(tasks: readonly Task[]): readonly Task[] {

@@ -1,37 +1,61 @@
-import { mount, showError } from "./view.js";
+import {
+  mount,
+  showError,
+  type FigureHost,
+  type SourceTarget,
+} from "./view.js";
+import { parseFieldPath } from "../edits.js";
 import "./styles.css";
 
 declare function acquireVsCodeApi(): {
   postMessage(message: unknown): void;
 };
 
-type HostMessage =
+// Sidecar file URLs under `from` are served to the webview under `to`.
+interface FigureMapping {
+  readonly from: string;
+  readonly to: string;
+  readonly revision: number;
+}
+
+type ViewMessage =
   | {
       readonly type: "render";
       readonly html: string;
       readonly editable: boolean;
+      readonly figures: FigureMapping;
     }
   | { readonly type: "error"; readonly message: string };
 
 const vscode = acquireVsCodeApi();
 const app = document.getElementById("app")!;
+const openSource = (target: SourceTarget): void =>
+  vscode.postMessage({ type: "source", ...target });
 let revision = 0;
 
-window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
-  const message = event.data;
+const figureHost = ({ from, to, revision }: FigureMapping): FigureHost => ({
+  href: (url) =>
+    url.startsWith(from) ? `${to}${url.slice(from.length)}?v=${revision}` : url,
+});
+
+window.addEventListener("message", (event: MessageEvent<ViewMessage>) => {
+  handle(event.data);
+});
+
+function handle(message: ViewMessage): void {
   const current = ++revision;
   if (message.type === "render") {
-    void mount(app, message.html)
+    void mount(app, message.html, openSource, figureHost(message.figures))
       .then(() => {
         if (current === revision && message.editable) enableEditing(app);
       })
       .catch((error: unknown) => {
-        if (current === revision) showError(app, error);
+        if (current === revision) showError(app, error, openSource);
       });
     return;
   }
-  showError(app, message.message);
-});
+  showError(app, message.message, openSource);
+}
 
 function enableEditing(container: HTMLElement): void {
   container.classList.add("editable");
@@ -68,9 +92,7 @@ function enableEditing(container: HTMLElement): void {
 function postEdit(path: string, value: string | boolean): void {
   vscode.postMessage({
     type: "edit",
-    path: path
-      .split(".")
-      .map((segment) => (/^\d+$/.test(segment) ? Number(segment) : segment)),
+    path: parseFieldPath(path),
     value,
   });
 }

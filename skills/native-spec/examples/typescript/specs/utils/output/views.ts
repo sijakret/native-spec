@@ -1,9 +1,10 @@
 import type {
+  AcceptanceCriterion,
   Artifact,
   ArtifactKind,
-  CodeBlock,
+  Diagram,
   Task,
-} from "../../definition/engine.js";
+} from "../../definition/process.js";
 
 interface Paragraph {
   readonly kind: "paragraph";
@@ -20,12 +21,26 @@ interface List {
 interface Code {
   readonly kind: "code";
 }
+interface SingleDiagram {
+  readonly kind: "diagram";
+}
 interface Tasks {
   readonly kind: "tasks";
   readonly label: string;
 }
+interface Criteria {
+  readonly kind: "criteria";
+  readonly label: string;
+}
 
-export type Field = Paragraph | Inline | List | Code | Tasks;
+export type Field =
+  | Paragraph
+  | Inline
+  | List
+  | Code
+  | SingleDiagram
+  | Tasks
+  | Criteria;
 
 // The descriptors permitted for a field type. Unmapped types resolve to never, so a new
 // or retyped artifact field cannot compile until a view is declared for it.
@@ -33,11 +48,15 @@ type FieldFor<Value> = [Value] extends [string]
   ? Paragraph | Inline
   : [Value] extends [readonly string[]]
     ? List | Inline
-    : [Value] extends [readonly CodeBlock[]]
-      ? Code
-      : [Value] extends [readonly Task[]]
-        ? Tasks
-        : never;
+    : [Value] extends [Diagram]
+      ? SingleDiagram
+      : [Value] extends [readonly Diagram[]]
+        ? Code
+        : [Value] extends [readonly Task[]]
+          ? Tasks
+          : [Value] extends [readonly AcceptanceCriterion[]]
+            ? Criteria
+            : never;
 
 type Identity = "project" | "kind" | "id" | "title";
 
@@ -57,7 +76,7 @@ const tasks = (label: string): Tasks => ({ kind: "tasks", label });
 const requirement = {
   tags: inline("Tags"),
   description: paragraph,
-  acceptanceCriteria: list("Acceptance Criteria"),
+  acceptanceCriteria: { kind: "criteria", label: "Acceptance Criteria" },
 } as const;
 
 // Declaration order is rendering order.
@@ -70,6 +89,7 @@ export const views: {
   "architecture-block": {
     tags: inline("Tags"),
     description: paragraph,
+    summaryDiagram: { kind: "diagram" },
     diagrams: code,
     responsibilities: list("Responsibilities"),
     files: list("Files and Folders"),
@@ -113,8 +133,10 @@ export type BoundField =
   | Bound<Paragraph, string>
   | Bound<Inline, string | readonly string[]>
   | Bound<List, readonly string[]>
-  | Bound<Code, readonly CodeBlock[]>
-  | Bound<Tasks, readonly Task[]>;
+  | Bound<Code, readonly Diagram[]>
+  | Bound<SingleDiagram, Diagram>
+  | Bound<Tasks, readonly Task[]>
+  | Bound<Criteria, readonly AcceptanceCriterion[]>;
 
 // Present fields of one artifact, in view order. Types were checked when `views` was declared.
 export function boundFields(artifact: Artifact): readonly BoundField[] {

@@ -9,13 +9,14 @@ import { createInterface } from "node:readline";
 import { pathToFileURL } from "node:url";
 
 // Types come from the co-located spec project; the runtime modules are loaded from the configured folder.
-type Engine = typeof import("../../../definition/engine.js");
+type ProcessDefinition = typeof import("../../../definition/process.js");
 type Project = {
-  readonly default: import("../../../definition/engine.js").SpecProject;
+  readonly default: import("../../../definition/process.js").SpecProject;
 };
 type Html = typeof import("../../output/html.js");
 type Rendering = typeof import("../../output/rendering.js");
-type Artifact = import("../../../definition/engine.js").Artifact;
+type Artifact = import("../../../definition/process.js").Artifact;
+type ArchitectureAudit = typeof import("../../../audit/architecture-audit.js");
 
 interface Request {
   readonly id: number;
@@ -33,17 +34,28 @@ const ts = createRequire(join(specs, "package.json"))(
   "typescript",
 ) as typeof import("typescript");
 
-const { buildGraph } = await load<Engine>("definition/engine.ts");
+const { buildGraph, validateProject } = await load<ProcessDefinition>(
+  "definition/process.ts",
+);
 const { default: project } = await load<Project>("definition/project.ts");
 const { renderSpecPanel } = await load<Html>("utils/output/html.ts");
-const { artifactAnchor } = await load<Rendering>("utils/output/rendering.ts");
+const { artifactAnchors } = await load<Rendering>("utils/output/rendering.ts");
+const { validateArchitectureFigures } = await load<ArchitectureAudit>(
+  "audit/architecture-audit.ts",
+);
 
 const artifactsDir = join(specs, "artifacts");
+const architectureFile = join(
+  artifactsDir,
+  "architecture",
+  "000-architecture.ts",
+);
 const artifactFilename = /\.(?:abb|mr|sr|nfr|tc|risk|sprint)\.ts$/;
 
 const graph = buildGraph(project);
 const locations: Record<string, string> = {
   "spec-overview": join(artifactsDir, "index.ts"),
+  "spec-architecture": architectureFile,
 };
 for (const entry of await readdir(artifactsDir, { recursive: true })) {
   if (!artifactFilename.test(entry)) continue;
@@ -52,7 +64,8 @@ for (const entry of await readdir(artifactsDir, { recursive: true })) {
     pathToFileURL(file).href
   );
   for (const value of Object.values(module)) {
-    if (isArtifact(value)) locations[artifactAnchor(value)] = file;
+    if (isArtifact(value))
+      for (const anchor of artifactAnchors(value)) locations[anchor] = file;
   }
 }
 
@@ -75,18 +88,24 @@ for await (const line of createInterface({ input: process.stdin })) {
 }
 
 async function render(source: string, path: string): Promise<string> {
-  const exported = Object.values(await importSource(source, path)).filter(
-    isArtifact,
-  );
+  const module = await importSource(source, path);
+  if (path === architectureFile) {
+    if (!isOverview(module.architectureOverview))
+      throw new Error(`No architectureOverview export found in ${path}`);
+    const preview = { ...project, overview: module.architectureOverview };
+    const problems = [
+      ...validateProject(preview),
+      ...validateArchitectureFigures(preview),
+    ];
+    if (problems.length) throw new Error(problems.join("\n"));
+    return renderSpecPanel(graph, preview, undefined, "architecture");
+  }
+  const exported = Object.values(module).filter(isArtifact);
   const overview = path === join(artifactsDir, "index.ts");
   if (exported.length === 0 && !(overview && project.artifacts.length === 0)) {
     throw new Error(`No artifact export found in ${path}`);
   }
-  return renderSpecPanel(
-    graph,
-    project,
-    overview ? undefined : exported,
-  );
+  return renderSpecPanel(graph, project, overview ? undefined : exported);
 }
 
 async function importSource(
@@ -100,11 +119,14 @@ async function importSource(
     },
   });
   const base = pathToFileURL(path);
-  const absolute = outputText.replace(
-    /(from\s+|import\s*\(?\s*)(["'])(\.\.?\/[^"']+)\2/g,
-    (_match, prefix: string, quote: string, specifier: string) =>
-      `${prefix}${quote}${new URL(specifier, base).href}${quote}`,
-  );
+  // The module runs from a data: URL; keep sidecar lookups relative to the real file.
+  const absolute = outputText
+    .replaceAll("import.meta.url", JSON.stringify(base.href))
+    .replace(
+      /(from\s+|import\s*\(?\s*)(["'])(\.\.?\/[^"']+)\2/g,
+      (_match, prefix: string, quote: string, specifier: string) =>
+        `${prefix}${quote}${new URL(specifier, base).href}${quote}`,
+    );
   return import(
     `data:text/javascript;base64,${Buffer.from(absolute).toString("base64")}`
   );
@@ -117,5 +139,16 @@ function isArtifact(value: unknown): value is Artifact {
     "kind" in value &&
     "id" in value &&
     "title" in value
+  );
+}
+
+function isOverview(
+  value: unknown,
+): value is NonNullable<Project["default"]["overview"]> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "description" in value &&
+    typeof value.description === "string"
   );
 }

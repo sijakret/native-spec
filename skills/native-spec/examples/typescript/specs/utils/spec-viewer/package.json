@@ -23,14 +23,33 @@
         "viewType": "nativeSpec.artifact",
         "displayName": "Spec Artifact",
         "selector": [
-          { "filenamePattern": "*.abb.ts" },
-          { "filenamePattern": "*.mr.ts" },
-          { "filenamePattern": "*.sr.ts" },
-          { "filenamePattern": "*.nfr.ts" },
-          { "filenamePattern": "*.tc.ts" },
-          { "filenamePattern": "*.risk.ts" },
-          { "filenamePattern": "*.sprint.ts" },
-          { "filenamePattern": "**/artifacts/**/index.ts" }
+          {
+            "filenamePattern": "*.abb.ts"
+          },
+          {
+            "filenamePattern": "*.mr.ts"
+          },
+          {
+            "filenamePattern": "*.sr.ts"
+          },
+          {
+            "filenamePattern": "*.nfr.ts"
+          },
+          {
+            "filenamePattern": "*.tc.ts"
+          },
+          {
+            "filenamePattern": "*.risk.ts"
+          },
+          {
+            "filenamePattern": "*.sprint.ts"
+          },
+          {
+            "filenamePattern": "**/artifacts/**/index.ts"
+          },
+          {
+            "filenamePattern": "**/artifacts/architecture/000-architecture.ts"
+          }
         ],
         "priority": "default"
       }

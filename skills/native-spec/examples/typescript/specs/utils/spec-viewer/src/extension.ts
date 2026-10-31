@@ -3,13 +3,19 @@ import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { join, relative } from "node:path";
 import { createInterface } from "node:readline";
+import { pathToFileURL } from "node:url";
 import type * as TS from "typescript";
 import * as vscode from "vscode";
-import { editArtifactSource, type PathSegment } from "./edits.js";
+import {
+  artifactSourceRange,
+  editArtifactSource,
+  type PathSegment,
+} from "./edits.js";
 import { findSpecsDirectory } from "./project.js";
 
 const viewType = "nativeSpec.artifact";
 const artifactFilename = /\.(?:abb|mr|sr|nfr|tc|risk|sprint)\.ts$/;
+const figureSuffix = ".excalidraw.svg";
 
 interface RenderResult {
   readonly html: string;
@@ -19,6 +25,11 @@ interface RenderResult {
 type WebviewMessage =
   | { readonly type: "ready" }
   | { readonly type: "open"; readonly anchor: string }
+  | {
+      readonly type: "source";
+      readonly anchor?: string;
+      readonly path?: readonly PathSegment[];
+    }
   | {
       readonly type: "edit";
       readonly path: readonly PathSegment[];
@@ -45,7 +56,12 @@ export function activate(context: vscode.ExtensionContext): void {
         const directory = vscode.Uri.joinPath(uri, "..", "..");
         return {
           label: vscode.workspace.asRelativePath(directory),
-          uri: vscode.Uri.joinPath(directory, "artifacts", "index.ts"),
+          uri: vscode.Uri.joinPath(
+            directory,
+            "artifacts",
+            "architecture",
+            "000-architecture.ts",
+          ),
         };
       });
       if (items.length === 0) {
@@ -175,19 +191,26 @@ class ArtifactEditorProvider implements vscode.CustomTextEditorProvider {
       "dist",
       "webview",
     );
-    panel.webview.options = {
-      enableScripts: true,
-      localResourceRoots: [distUri],
-    };
-    panel.webview.html = shell(panel.webview, distUri);
-
     const root = workspaceRoot(document.uri);
     const configured = vscode.workspace
       .getConfiguration("nativeSpec", document.uri)
       .get<string>("specsFolder", "specs");
     const specs = findSpecsDirectory(root, document.uri.fsPath, configured);
+    const specsUri = vscode.Uri.file(specs);
+    panel.webview.options = {
+      enableScripts: true,
+      // The spec folder is readable so figure sidecars can be shown.
+      localResourceRoots: [distUri, specsUri],
+    };
+    panel.webview.html = shell(panel.webview, distUri);
+    let figureRevision = Date.now();
+    const figureMapping = () => ({
+      from: `${pathToFileURL(specs).href}/`,
+      to: `${panel.webview.asWebviewUri(specsUri).toString()}/`,
+      revision: figureRevision,
+    });
     const renderer = this.rendererFor(specs);
-    // Index modules re-export several artifacts and are browse-only.
+    // Composition and overview modules are browse-only.
     const editable =
       document.uri.scheme === "file" &&
       artifactFilename.test(document.uri.path);
@@ -201,6 +224,7 @@ class ArtifactEditorProvider implements vscode.CustomTextEditorProvider {
           type: "render",
           html: result.html,
           editable,
+          figures: figureMapping(),
         });
       } catch (error) {
         await panel.webview.postMessage({
@@ -227,8 +251,19 @@ class ArtifactEditorProvider implements vscode.CustomTextEditorProvider {
       renderer.reset();
       schedule();
     };
+    const figureWatcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(specsUri, `**/*${figureSuffix}`),
+    );
+    const refreshFigures = (): void => {
+      figureRevision++;
+      schedule();
+    };
     const disposables: vscode.Disposable[] = [
       watcher,
+      figureWatcher,
+      figureWatcher.onDidChange(refreshFigures),
+      figureWatcher.onDidCreate(refreshFigures),
+      figureWatcher.onDidDelete(refreshFigures),
       watcher.onDidChange(resetAndSchedule),
       watcher.onDidCreate(resetAndSchedule),
       watcher.onDidDelete(resetAndSchedule),
@@ -260,6 +295,51 @@ class ArtifactEditorProvider implements vscode.CustomTextEditorProvider {
               error instanceof Error ? error.message : String(error),
             );
             schedule();
+          }
+        }
+        if (message.type === "source") {
+          try {
+            let target = document;
+            if (message.anchor) {
+              const file = locations[message.anchor];
+              if (!file)
+                throw new Error(
+                  `No source file found for spec link: ${message.anchor}`,
+                );
+              target = await vscode.workspace.openTextDocument(
+                vscode.Uri.file(file),
+              );
+            }
+            const offsets = message.path
+              ? artifactSourceRange(
+                  workspaceRequire(specs)("typescript") as typeof TS,
+                  target.getText(),
+                  message.path,
+                )
+              : { start: 0, end: 0 };
+            const selection = new vscode.Range(
+              target.positionAt(offsets.start),
+              target.positionAt(offsets.end),
+            );
+            await vscode.commands.executeCommand(
+              "vscode.openWith",
+              target.uri,
+              "default",
+              { viewColumn: panel.viewColumn, preview: false },
+            );
+            const editor = await vscode.window.showTextDocument(target, {
+              viewColumn: panel.viewColumn,
+              selection,
+              preview: false,
+            });
+            editor.revealRange(
+              selection,
+              vscode.TextEditorRevealType.InCenterIfOutsideViewport,
+            );
+          } catch (error) {
+            void vscode.window.showErrorMessage(
+              error instanceof Error ? error.message : String(error),
+            );
           }
         }
       }),
@@ -322,14 +402,18 @@ async function formatDocument(document: vscode.TextDocument): Promise<void> {
 }
 
 function shell(webview: vscode.Webview, distUri: vscode.Uri): string {
-  const script = webview.asWebviewUri(vscode.Uri.joinPath(distUri, "main.js"));
-  const style = webview.asWebviewUri(vscode.Uri.joinPath(distUri, "style.css"));
   const nonce = randomUUID().replaceAll("-", "");
+  const script = webview.asWebviewUri(vscode.Uri.joinPath(distUri, "main.js"));
+  const style = webview
+    .asWebviewUri(vscode.Uri.joinPath(distUri, "style.css"))
+    .with({ query: `v=${nonce}` });
   const csp = [
     "default-src 'none'",
-    `img-src ${webview.cspSource} data:`,
+    `img-src ${webview.cspSource} data: blob:`,
     `style-src ${webview.cspSource} 'unsafe-inline'`,
-    `font-src ${webview.cspSource}`,
+    `font-src ${webview.cspSource} data: blob:`,
+    `connect-src ${webview.cspSource}`,
+    `worker-src ${webview.cspSource} blob:`,
     `script-src ${webview.cspSource} 'nonce-${nonce}'`,
   ].join("; ");
   return `<!doctype html>
