@@ -1,4 +1,4 @@
-/** @specModule ABB-007 */
+/** @specModule ABB-001 */
 export interface Product {
   readonly id: string;
   readonly sku: string;
