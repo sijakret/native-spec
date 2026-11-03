@@ -1,6 +1,7 @@
 import {
   figure,
   implementsRequirement,
+  type Bindings,
   type Implementation,
 } from "../../definition/process.js";
 import type * as desk from "../../../src/main.js";
@@ -35,10 +36,32 @@ export const inventoryDesk = artifact.architectureBlock({
   files: ["src/styles.css", "src/cdn.d.ts"],
 });
 
-export type InventoryDeskModule = Implementation<
+export interface InventoryDeskLinks extends Implementation<
   typeof inventoryDesk,
   [typeof desk]
->;
+> {
+  readonly contract: {
+    currentState: object;
+    errorText: object;
+    perform: object;
+    formValues: object;
+    onRestock: object;
+    onReserve: object;
+    onCloseOrder: object;
+    onNavigate: object;
+    onSearch: object;
+    onReset: object;
+    onExport: object;
+    onImport: object;
+    orderTable: object;
+    overviewPage: object;
+    inventoryPage: object;
+    ordersPage: object;
+    draw: object;
+    boot: object;
+  };
+  readonly bindings: Bindings<InventoryDeskLinks["contract"], desk.local>;
+}
 
 export const inventoryDeskRelations = [
   implementsRequirement(inventoryDesk, inventory),

@@ -1,5 +1,5 @@
-import type { Implementation } from "../specs/definition/process.js";
-import type { inventoryDesk } from "../specs/artifacts/architecture/003-inventory-desk.abb.js";
+import type { Bindings } from "../specs/definition/process.js";
+import type { InventoryDeskLinks } from "../specs/artifacts/architecture/003-inventory-desk.abb.js";
 import {
   availableFor,
   closeOrder,
@@ -14,28 +14,28 @@ import {
 import { exportWorkspace, importWorkspace, WorkspaceStore } from "./storage.js";
 import "./styles.css";
 
-type InventoryDeskImplementation = Implementation<
-  typeof inventoryDesk,
-  [
-    typeof currentState,
-    typeof errorText,
-    typeof perform,
-    typeof formValues,
-    typeof onRestock,
-    typeof onReserve,
-    typeof onCloseOrder,
-    typeof onNavigate,
-    typeof onSearch,
-    typeof onReset,
-    typeof onExport,
-    typeof onImport,
-    typeof orderTable,
-    typeof overviewPage,
-    typeof inventoryPage,
-    typeof ordersPage,
-    typeof draw,
-    typeof boot,
-  ]
+export type local = Bindings<
+  InventoryDeskLinks["contract"],
+  {
+    currentState: typeof currentState;
+    errorText: typeof errorText;
+    perform: typeof perform;
+    formValues: typeof formValues;
+    onRestock: typeof onRestock;
+    onReserve: typeof onReserve;
+    onCloseOrder: typeof onCloseOrder;
+    onNavigate: typeof onNavigate;
+    onSearch: typeof onSearch;
+    onReset: typeof onReset;
+    onExport: typeof onExport;
+    onImport: typeof onImport;
+    orderTable: typeof orderTable;
+    overviewPage: typeof overviewPage;
+    inventoryPage: typeof inventoryPage;
+    ordersPage: typeof ordersPage;
+    draw: typeof draw;
+    boot: typeof boot;
+  }
 >;
 
 type View = "overview" | "inventory" | "orders";

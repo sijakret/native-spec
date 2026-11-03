@@ -1,6 +1,7 @@
 import {
   figure,
   implementsRequirement,
+  type Bindings,
   type Implementation,
 } from "../../definition/process.js";
 import type * as domain from "../../../src/domain.js";
@@ -27,7 +28,7 @@ export const stockDomain = artifact.architectureBlock({
   ],
 });
 
-export type StockDomainImplementation = Implementation<
+export interface StockDomainLinks extends Implementation<
   typeof stockDomain,
   [
     typeof domain,
@@ -42,7 +43,16 @@ export type StockDomainImplementation = Implementation<
     typeof domain.searchProducts,
     typeof domain.stockSummary,
   ]
->;
+> {
+  readonly contract: {
+    record: object;
+    text: object;
+    parseProduct: object;
+    parseOrder: object;
+    unique: object;
+  };
+  readonly bindings: Bindings<StockDomainLinks["contract"], domain.local>;
+}
 
 export const stockDomainRelations = [
   implementsRequirement(stockDomain, inventory),

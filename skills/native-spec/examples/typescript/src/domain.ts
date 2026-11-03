@@ -1,15 +1,15 @@
-import type { Implementation } from "../specs/definition/process.js";
-import type { stockDomain } from "../specs/artifacts/architecture/001-stock-domain.abb.js";
+import type { Bindings } from "../specs/definition/process.js";
+import type { StockDomainLinks } from "../specs/artifacts/architecture/001-stock-domain.abb.js";
 
-type StockDomainHelpers = Implementation<
-  typeof stockDomain,
-  [
-    typeof record,
-    typeof text,
-    typeof parseProduct,
-    typeof parseOrder,
-    typeof unique,
-  ]
+export type local = Bindings<
+  StockDomainLinks["contract"],
+  {
+    record: typeof record;
+    text: typeof text;
+    parseProduct: typeof parseProduct;
+    parseOrder: typeof parseOrder;
+    unique: typeof unique;
+  }
 >;
 
 export interface Product {

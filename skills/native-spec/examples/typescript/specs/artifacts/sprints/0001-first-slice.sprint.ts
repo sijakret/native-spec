@@ -54,7 +54,7 @@ export const firstSliceSprint = artifact.sprint({
   ],
   implementation: [
     "Immutable stock and order rules, validated local persistence, and a Vite UI with a pinned runtime CDN renderer.",
-    "Erased Implementation type aliases with native imported module/method references, source-local links for private helpers, graph-derived requirement coverage, and independent callable enumeration. Audits and invariant tests live under specs/audit; no validation worker, custom diagnostic layer, or runtime spec import ships in the browser bundle.",
+    "Erased Implementation links with native imported module/method references and a single ABB interface for each private contract and checked binding. Source-local type maps satisfy the same inline contract; the ABB checks the reverse export without a standalone slot manifest or repeated private target list. The audit resolves actual callable identity and derives requirement coverage through the architecture graph. Audits and invariant tests live under specs/audit; no validation worker, custom diagnostic layer, or runtime spec import ships in the browser bundle.",
   ],
   architectureReview: [
     {

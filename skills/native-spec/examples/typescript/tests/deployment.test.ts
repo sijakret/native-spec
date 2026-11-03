@@ -22,8 +22,9 @@ describe("CDN-based deployment", () => {
     );
     expect(scripts).not.toContain("specs/artifacts");
     expect(scripts).not.toContain("privateByDefault");
-    expect(scripts).not.toContain("StockDomainHelpers");
-    expect(scripts).not.toContain("InventoryDeskImplementation");
+    expect(scripts).not.toContain("StockDomainLinks");
+    expect(scripts).not.toContain("InventoryDeskLinks");
+    expect(scripts).not.toContain("Bindings");
     expect(scripts).not.toContain("REQ-SR-");
     expect(scripts).not.toContain("ABB-");
     const styles = readdirSync(join(root, "dist/assets"))

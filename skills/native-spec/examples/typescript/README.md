@@ -47,11 +47,30 @@ The TypeScript compiler and VS Code's existing TypeScript service check imported
 The [coverage audit](./specs/audit/code-audit.ts) independently enumerates the app source tree, resolves the native symbol references, requires complete ownership, and derives requirement coverage through `implementsRequirement`: **code -> ABB -> requirements**. The compiler checks that a reference exists; the coverage audit checks that all required references were declared. It returns an in-memory inventory, not a handwritten ledger or generated mirror.
 
 - Every TypeScript module and implemented named callable under `src/` needs an explicit target. A module target does not cover named functions. A class value target links its implemented constructor; indexed-access types link instance methods and accessors.
-- Keep public symbol links beside their ABB. For non-exported helpers, place a local `type Helpers = Implementation<typeof owner, [typeof helper]>` in the source with type-only imports of the owner and marker. Helpers stay private and add no runtime dependency on specs.
+- Declare public and private implementation targets beside their ABB. For non-exported callables, use one interface extending `Implementation<Owner, PublicTargets>`, with an inline `contract` and a checked `bindings: Bindings<Links["contract"], module.local>` field. The source exports `type local = Bindings<Links["contract"], { slot: typeof callable }>` using only type imports. No separate private-slot manifest or repeated private target list is needed; the functions remain private.
 - Multiple ABBs can link the same symbol; an owner union is also supported. Requirements shared through those ABBs are deduplicated. Inventory entries expose `architectureBlocks` and `requirements`.
 - Inline callbacks inherit their nearest named callable's ownership, or the module's at top level, and retain source positions and inheritance provenance.
 - Use ABB `files` only for supporting CSS and ambient `.d.ts` files. The audit checks their existence and ownership; these plain paths do not gain native TypeScript symbol diagnostics. TypeScript implementation files use native imports instead of duplicated path lists.
 - The audit rejects missing ownership, unknown owners, unresolved/duplicate targets, dangling implementation relations, unsupported source languages, dynamic callable names, and undeclared callable assignments. Tests, specs, viewer/build tooling, dependencies, and generated output remain outside the production-app inventory.
+
+The [domain link interface](./specs/artifacts/architecture/001-stock-domain.abb.ts) declares its private slots in `StockDomainLinks["contract"]` and checks the actual source export through `readonly bindings: Bindings<StockDomainLinks["contract"], domain.local>`. The domain satisfies that same declaration by exporting only a binding type, not its private functions:
+
+```ts
+export type local = Bindings<
+  StockDomainLinks["contract"],
+  {
+    record: typeof record;
+    text: typeof text;
+    parseProduct: typeof parseProduct;
+    parseOrder: typeof parseOrder;
+    unique: typeof unique;
+  }
+>;
+```
+
+The compiler checks both ends: missing/extra slots fail in the source, and the ABB's `bindings` field still rejects an incompatible map even if the source omits its helper. Removing the source's binding export also fails at the ABB reference. Signatures can be declared instead of `object` when structural signature checking is required; `object` alone does not impose a callable signature.
+
+Keep public targets in the base `Implementation` tuple and private targets in the checked `bindings` field. The concrete interface permits the two-file type reference without an eager circular generic alias; do not put its private binding map back in the base tuple. The audit combines public targets and bound private symbols under the same owner, expands finite flat maps, and rejects duplicate or unresolved targets. Groups do not grant blanket module ownership. Native types check structural constraints, not function identity or behavior; the audit resolves actual declarations, so identically typed callables remain distinct. Exporting `local` adds no runtime export or spec import to the app.
 
 ```sh
 npm run code:check
@@ -204,6 +223,6 @@ Import targets directly from their owning artifact files, not from the collectin
 Keep the overview in specs/artifacts/architecture/000-architecture.ts; use architectureDiagram with actual ABB values, and include every registered ABB in its blocks. Runtime validation checks completeness; TypeScript checks node and endpoint kinds.
 Use architectureFigure for an Excalidraw whole-system overview, and give every ABB a summaryDiagram (Excalidraw or Mermaid). Preserve visible ABB node references and bound ID labels in the editable scenes; the audit checks the actual SVGs, not just the TypeScript block lists.
 Give acceptance criteria stable local IDs and link tests with verifies(testCase, requirement, criterionId); every criterion needs coverage.
-Link app code to ABBs with erased Implementation<typeof abb, [typeof module, typeof module.function, ModuleClass["method"]]> type aliases and import type. Keep public links beside ABBs and private-helper links source-local. Native TypeScript checks symbol existence; the build audit checks exhaustive ownership and derives requirements through implementsRequirement. Reserve ABB files for CSS/ambient declarations. Do not add a custom validation worker, comment-ID parser, runtime annotation wrapper, ledger, or generated intermediate files. Keep invariant tests and code audits in specs/audit/.
+Link app code to ABBs with erased Implementation<typeof abb, [typeof module, typeof module.function, ModuleClass["method"]]> declarations and import type. For private callables, declare one interface extending Implementation<Owner, PublicTargets>, with an inline contract and bindings: Bindings<Links["contract"], module.local>. The source exports type local = Bindings<Links["contract"], { slot: typeof callable }>. Keep private maps out of the base tuple to avoid circular constraints; do not add a standalone private-slot manifest or repeat private targets. Native TypeScript checks both ends for symbol/export existence, exact slot agreement, and any declared signatures; the build audit expands finite flat bindings, checks actual symbol identity and exhaustive ownership, and derives requirements through implementsRequirement. Reserve ABB files for CSS/ambient declarations. Do not add a custom validation worker, comment-ID parser, runtime annotation wrapper, ledger, or generated intermediate files. Keep invariant tests and code audits in specs/audit/.
 For product changes: update artifacts and add a sprint, run `npm run specs:check` before implementing, keep architecture blocks current, and finish with `npm run specs:test`.
 ```

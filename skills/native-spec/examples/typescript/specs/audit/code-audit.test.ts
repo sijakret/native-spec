@@ -119,6 +119,19 @@ describe("native implementation links", () => {
     ]);
   });
 
+  it("does not grant ownership to helpers returned by directly linked getters", () => {
+    const result = audit(
+      `
+        function hidden() { return 1; }
+        export class Store { get callback() { return hidden; } }
+      `,
+      `app.Store["callback"]`,
+    );
+    expect(result.errors).toEqual([
+      "Missing architecture link: src/app.ts#hidden",
+    ]);
+  });
+
   it("resolves source-local type-only links for non-exported helpers", () => {
     const source = `
       import type { Implementation } from "../specs/definition/process.js";
@@ -130,6 +143,174 @@ describe("native implementation links", () => {
     expect(result.errors).toEqual([]);
     expect(result.inventory[1].symbol).toBe("hidden");
     expect(result.inventory[2].inheritedFrom).toBe("src/app.ts#hidden");
+  });
+
+  it.each([
+    [
+      "individual slots",
+      'app.local["first"], app.local["second"], app.local["assigned"], app.local["store"]',
+    ],
+    ["whole maps", "app.local"],
+  ])(
+    "resolves ABB-owned private %s without conflating identical signatures",
+    (_form, targets) => {
+      const source = `
+      import type { Bindings } from "../specs/definition/process.js";
+      import type { PrivateSlots } from "../specs/links.js";
+      function first() { return [1].map(value => value + 1); }
+      function second() { return [1].map(value => value + 1); }
+      const assigned = () => 1;
+      class Store { constructor() {} }
+      export type local = Bindings<PrivateSlots, {
+        first: typeof first;
+        second: typeof second;
+        assigned: typeof assigned;
+        store: typeof Store;
+      }>;
+    `;
+      const links = `${declarations}
+      export type PrivateSlots = {
+        first: object; second: object; assigned: object; store: object;
+      };
+      export type Ownership = Links<typeof domain, [
+        typeof app, ${targets}
+      ]>;
+    `;
+      const result = auditSources(
+        new Map([["src/app.ts", source]]),
+        project,
+        new Map([["specs/links.ts", links]]),
+      );
+      expect(result.errors).toEqual([]);
+      expect(
+        result.inventory
+          .filter((entry) => entry.kind === "function")
+          .map((entry) => entry.symbol),
+      ).toEqual(["first", "second", "assigned", "Store.constructor"]);
+      for (const entry of result.inventory) {
+        expect(entry.architectureBlocks).toEqual([stockDomain.id]);
+        expect(entry.requirements).toEqual([inventory.id]);
+      }
+      expect(
+        result.inventory
+          .filter((entry) => entry.kind === "callback")
+          .map((entry) => entry.inheritedFrom),
+      ).toEqual(["src/app.ts#first", "src/app.ts#second"]);
+      const duplicate = auditSources(
+        new Map([["src/app.ts", source]]),
+        project,
+        new Map([
+          [
+            "specs/links.ts",
+            `${links}
+        type Duplicate = Links<typeof domain, [app.local, app.local["first"]]>;
+      `,
+          ],
+        ]),
+      );
+      expect(duplicate.errors).toContain(
+        "Duplicate implementation target: src/app.ts#first",
+      );
+    },
+  );
+
+  it.each([
+    ["empty maps", "{}", "Invalid implementation group"],
+    [
+      "open-ended maps",
+      "Record<string, () => void>",
+      "Invalid implementation group",
+    ],
+    [
+      "unresolved members",
+      "{ hidden: typeof hidden; invalid: string }",
+      "Unresolved implementation target",
+    ],
+    [
+      "nested maps",
+      "{ nested: { hidden: typeof hidden } }",
+      "Unresolved implementation target",
+    ],
+    ["class instances", "Store", "Invalid implementation group"],
+  ])("rejects private groups with %s", (_form, binding, message) => {
+    const result = audit(
+      `
+        function hidden() { return 1; }
+        class Store { run() {} }
+        export type local = ${binding};
+      `,
+      "app.local",
+    );
+    expect(result.errors.join()).toContain(message);
+    expect(result.errors).toContain(
+      "Missing architecture link: src/app.ts#Store.run",
+    );
+    if (binding !== "{ hidden: typeof hidden; invalid: string }") {
+      expect(result.errors).toContain(
+        "Missing architecture link: src/app.ts#hidden",
+      );
+    }
+  });
+
+  it("resolves interface contracts and checked bindings under their ABB owner", () => {
+    const source = `
+      import type { Bindings } from "../specs/definition/process.js";
+      import type { Ownership } from "../specs/links.js";
+      export function first() { return [1].map(value => value + 1); }
+      function second() { return [1].map(value => value + 1); }
+      export type local = Bindings<Ownership["contract"], {
+        first: typeof first; second: typeof second;
+      }>;
+    `;
+    const links = `${declarations}
+      import type { Bindings as Checked } from "./definition/process.js";
+      export interface Ownership extends Links<typeof domain, [typeof app]> {
+        readonly contract: { first: object; second: object };
+        readonly bindings: Checked<Ownership["contract"], app.local>;
+      }
+    `;
+    const result = auditSources(
+      new Map([["src/app.ts", source]]),
+      project,
+      new Map([["specs/links.ts", links]]),
+    );
+    expect(result.errors).toEqual([]);
+    for (const entry of result.inventory) {
+      expect(entry.architectureBlocks).toEqual([stockDomain.id]);
+      expect(entry.requirements).toEqual([inventory.id]);
+    }
+    const duplicate = auditSources(
+      new Map([["src/app.ts", source]]),
+      project,
+      new Map([
+        [
+          "specs/links.ts",
+          links.replace("[typeof app]", "[typeof app, typeof app.first]"),
+        ],
+      ]),
+    );
+    expect(duplicate.errors).toContain(
+      "Duplicate implementation target: src/app.ts#first",
+    );
+    const unchecked = auditSources(
+      new Map([["src/app.ts", source]]),
+      project,
+      new Map([
+        [
+          "specs/links.ts",
+          links.replace(
+            'Checked<Ownership["contract"], app.local>',
+            "app.local",
+          ),
+        ],
+      ]),
+    );
+    expect(unchecked.errors.join()).toContain(
+      "Interface bindings must use Bindings",
+    );
+    expect(unchecked.errors).toContain(
+      "Missing architecture link: src/app.ts#first",
+    );
   });
 
   it("rejects unresolved and duplicate symbol links", () => {

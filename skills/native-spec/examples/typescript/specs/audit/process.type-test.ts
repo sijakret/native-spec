@@ -6,12 +6,58 @@ import {
   derivesFrom,
   implementsRequirement,
   verifies,
+  type Bindings,
   type CodeBlock,
   type Implementation,
 } from "../definition/process.js";
 import type * as storage from "../../src/storage.js";
+import type * as domain from "../../src/domain.js";
 // @ts-expect-error module paths are checked by the native compiler
 import type * as MissingSource from "../../src/missing-native-link.js";
+// @ts-expect-error exporting a binding type does not export its private functions
+import type { record as PrivateRecord } from "../../src/domain.js";
+
+type PrivateSlots = NativePrivateLinks["contract"];
+export type NativePrivateBindings = Bindings<
+  PrivateSlots,
+  { save: typeof storage.exportWorkspace }
+>;
+
+// @ts-expect-error every declared private slot needs a binding
+export type MissingPrivateBinding = Bindings<PrivateSlots, {}>;
+
+export type ExtraPrivateBinding = Bindings<
+  PrivateSlots,
+  // @ts-expect-error private bindings cannot introduce undeclared slots
+  {
+    save: typeof storage.exportWorkspace;
+    extra: typeof storage.exportWorkspace;
+  }
+>;
+
+export type InvalidPrivateBinding = Bindings<
+  PrivateSlots,
+  // @ts-expect-error private slots bind symbols, not string identifiers
+  { save: "exportWorkspace" }
+>;
+
+// @ts-expect-error ABB references must name an existing private binding
+export type MissingPrivateSlot = domain.local["missing"];
+
+// @ts-expect-error ABB binding references require an actual exported binding type
+export type MissingBindingExport = domain.missingLocal;
+
+export type MissingBindingSymbol = Bindings<
+  PrivateSlots,
+  // @ts-expect-error bindings require existing source symbols
+  { save: typeof storage.missingSave }
+>;
+
+export type WrongBindingSignature = Bindings<
+  PrivateSlots,
+  // @ts-expect-error bindings must satisfy signatures declared in the contract
+  { save: () => number }
+>;
 
 // @ts-expect-error every diagram requires an explicit title
 const untitledDiagram: CodeBlock = {
@@ -60,8 +106,36 @@ export type NativeStorageLinks = Implementation<
   ]
 >;
 
-// @ts-expect-error link owners must be architecture blocks
+export interface NativePrivateLinks extends Implementation<
+  typeof architecture,
+  [typeof storage]
+> {
+  readonly contract: { save: typeof storage.exportWorkspace };
+  readonly bindings: Bindings<
+    NativePrivateLinks["contract"],
+    NativePrivateBindings
+  >;
+}
+
+type UncheckedBindings = {
+  save: typeof storage.exportWorkspace;
+  extra: typeof storage.exportWorkspace;
+};
+
+export interface RejectsUncheckedBindings extends Implementation<
+  typeof architecture,
+  [typeof storage]
+> {
+  readonly contract: NativePrivateLinks["contract"];
+  readonly bindings: Bindings<
+    RejectsUncheckedBindings["contract"],
+    // @ts-expect-error the ABB also rejects extra slots without a source helper
+    UncheckedBindings
+  >;
+}
+
 export type InvalidLinkOwner = Implementation<
+  // @ts-expect-error link owners must be architecture blocks
   typeof software,
   [typeof storage]
 >;
@@ -69,9 +143,9 @@ export type InvalidLinkOwner = Implementation<
 // @ts-expect-error a link must identify at least one source target
 export type EmptyLinks = Implementation<typeof architecture, []>;
 
-// @ts-expect-error method names are checked by the TypeScript compiler
 export type MissingMethod = Implementation<
   typeof architecture,
+  // @ts-expect-error method names are checked by the TypeScript compiler
   [storage.WorkspaceStore["missingMethod"]]
 >;
 

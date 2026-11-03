@@ -15,7 +15,7 @@ export const codeTraceability = artifact.nonFunctionalRequirement({
     {
       id: "requirement-links",
       description:
-        "Every TypeScript module and named callable has an Implementation type link to at least one registered ABB. Use imported symbols beside the ABB and source-local type aliases for non-exported helpers. Supporting CSS and ambient declaration files use ABB file entries. Derive requirement coverage through implements relations.",
+        "Every TypeScript module and named callable has an Implementation type link to at least one registered ABB. Declare private links in a single ABB interface with an inline contract and checked bindings field; the source satisfies that same contract with an exported type-only local map. Do not export the private functions, maintain a separate slot manifest, or repeat private targets in the public target tuple. Supporting CSS and ambient declaration files use ABB file entries. Derive requirement coverage through implements relations.",
     },
     {
       id: "callback-inheritance",
@@ -25,7 +25,7 @@ export const codeTraceability = artifact.nonFunctionalRequirement({
     {
       id: "reject-invalid-links",
       description:
-        "The native TypeScript compiler and editor reject missing imported modules, exports, and methods. The build-time audit rejects unresolved targets, missing ABB ownership, dangling implementation relations, missing supporting files, duplicate targets, unsupported file languages, and unsupported dynamic callable names.",
+        "The native TypeScript compiler and editor reject missing imported modules, exports, methods, and private slots, plus missing or extra private bindings and incompatible declared signatures. The ABB checks the source export even if the source omits its binding helper. The build-time audit resolves actual declaration identity and rejects unresolved targets, missing ABB ownership, dangling implementation relations, missing supporting files, duplicate targets, unsupported file languages, and unsupported dynamic callable names.",
     },
     {
       id: "app-boundary",

@@ -269,20 +269,28 @@ export function auditSources(
     const value = checker.getTypeOfSymbolAtLocation(property, node);
     return value.isStringLiteral() ? value.value : undefined;
   };
-  const resolveTarget = (node: ts.TypeNode): readonly string[] => {
-    let symbol: ts.Symbol | undefined;
-    if (ts.isTypeQueryNode(node)) symbol = symbolAt(node.exprName);
-    else if (ts.isImportTypeNode(node) && node.isTypeOf)
-      symbol = checker.getTypeFromTypeNode(node).getSymbol();
-    else if (ts.isIndexedAccessTypeNode(node)) {
-      const key = checker.getTypeFromTypeNode(node.indexType);
-      if (key.isStringLiteral() || key.isNumberLiteral())
-        symbol = checker.getPropertyOfType(
-          checker.getTypeFromTypeNode(node.objectType),
-          String(key.value),
-        );
-    }
-    const declarations = symbol?.getDeclarations() ?? [];
+  const resolveSymbol = (
+    symbol: ts.Symbol | undefined,
+    node: ts.TypeNode,
+    targetName = node.getText(),
+  ): readonly string[] => {
+    const symbolDeclarations = symbol?.getDeclarations() ?? [];
+    const targetType =
+      symbol &&
+      !symbolDeclarations.some((declaration) => nodeTargets.has(declaration))
+        ? checker.getTypeOfSymbolAtLocation(symbol, node)
+        : undefined;
+    const declarations = [
+      ...symbolDeclarations,
+      ...(targetType?.getSymbol()?.getDeclarations() ?? []),
+      ...[
+        ...(targetType?.getCallSignatures() ?? []),
+        ...(targetType?.getConstructSignatures() ?? []),
+      ].flatMap((signature) => {
+        const declaration = signature.getDeclaration();
+        return declaration ? [declaration] : [];
+      }),
+    ];
     const resolved = [
       ...new Set(
         declarations.flatMap((declaration) => {
@@ -301,27 +309,72 @@ export function auditSources(
     )
       return [];
     errors.push(
-      `Unresolved implementation target: ${pathOf(node.getSourceFile())}:${node.getText()}`,
+      `Unresolved implementation target: ${pathOf(node.getSourceFile())}:${targetName}`,
     );
     return [];
   };
+  const resolveTarget = (node: ts.TypeNode): readonly string[] => {
+    if (ts.isTypeReferenceNode(node)) {
+      const group = checker.getTypeFromTypeNode(node);
+      const members = group.getProperties();
+      if (
+        !(group.flags & ts.TypeFlags.Object) ||
+        (group.getSymbol()?.flags ?? 0) & ts.SymbolFlags.Class ||
+        !members.length ||
+        group.getCallSignatures().length ||
+        group.getConstructSignatures().length ||
+        checker.getIndexInfosOfType(group).length
+      ) {
+        errors.push(
+          `Invalid implementation group: ${pathOf(node.getSourceFile())}:${node.getText()}`,
+        );
+        return [];
+      }
+      return members.flatMap((member) =>
+        resolveSymbol(
+          member,
+          node,
+          `${node.getText()}[${JSON.stringify(member.getName())}]`,
+        ),
+      );
+    }
+    let symbol: ts.Symbol | undefined;
+    if (ts.isTypeQueryNode(node)) symbol = symbolAt(node.exprName);
+    else if (ts.isImportTypeNode(node) && node.isTypeOf)
+      symbol = checker.getTypeFromTypeNode(node).getSymbol();
+    else if (ts.isIndexedAccessTypeNode(node)) {
+      const key = checker.getTypeFromTypeNode(node.indexType);
+      if (key.isStringLiteral() || key.isNumberLiteral())
+        symbol = checker.getPropertyOfType(
+          checker.getTypeFromTypeNode(node.objectType),
+          String(key.value),
+        );
+    }
+    return resolveSymbol(symbol, node);
+  };
+  const isProcessType = (node: ts.Node, name: string): boolean =>
+    symbolAt(node)
+      ?.getDeclarations()
+      ?.some(
+        (declaration) =>
+          ts.isTypeAliasDeclaration(declaration) &&
+          declaration.name.text === name &&
+          declaration
+            .getSourceFile()
+            .fileName.replaceAll("\\", "/")
+            .endsWith("/definition/process.ts"),
+      ) ?? false;
   for (const file of sources.keys()) {
     const ast = program.getSourceFile(file)!;
     const visit = (node: ts.Node): void => {
-      if (ts.isTypeReferenceNode(node)) {
-        const marker = symbolAt(node.typeName);
-        const declaration = marker
-          ?.getDeclarations()
-          ?.find(
-            (candidate) =>
-              ts.isTypeAliasDeclaration(candidate) &&
-              candidate.name.text === "Implementation" &&
-              candidate
-                .getSourceFile()
-                .fileName.replaceAll("\\", "/")
-                .endsWith("/definition/process.ts"),
-          );
-        if (declaration) {
+      if (
+        ts.isTypeReferenceNode(node) ||
+        ts.isExpressionWithTypeArguments(node)
+      ) {
+        const name = ts.isTypeReferenceNode(node)
+          ? node.typeName
+          : node.expression;
+        if (isProcessType(name, "Implementation")) {
           const [owner, implementations] = node.typeArguments ?? [];
           if (
             !owner ||
@@ -355,10 +408,34 @@ export function auditSources(
                 );
               return [id];
             });
+            const targetNodes = [...implementations.elements];
+            if (
+              ts.isExpressionWithTypeArguments(node) &&
+              ts.isHeritageClause(node.parent) &&
+              ts.isInterfaceDeclaration(node.parent.parent)
+            ) {
+              const bindings = node.parent.parent.members.find(
+                (member): member is ts.PropertySignature =>
+                  ts.isPropertySignature(member) &&
+                  ts.isIdentifier(member.name) &&
+                  member.name.text === "bindings",
+              )?.type;
+              if (bindings) {
+                if (
+                  ts.isTypeReferenceNode(bindings) &&
+                  isProcessType(bindings.typeName, "Bindings") &&
+                  bindings.typeArguments?.length === 2
+                ) {
+                  targetNodes.push(bindings.typeArguments[1]!);
+                } else {
+                  errors.push(
+                    `Interface bindings must use Bindings<Contract, Source>: ${pathOf(ast)}`,
+                  );
+                }
+              }
+            }
             const seen = new Set<string>();
-            for (const target of implementations.elements.flatMap(
-              resolveTarget,
-            )) {
+            for (const target of targetNodes.flatMap(resolveTarget)) {
               if (seen.has(target))
                 errors.push(`Duplicate implementation target: ${target}`);
               seen.add(target);

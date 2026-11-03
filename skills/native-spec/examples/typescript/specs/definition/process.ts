@@ -238,6 +238,12 @@ export type Implementation<
   readonly targets: Targets;
 };
 
+export type Bindings<
+  Contract extends object,
+  Targets extends Contract &
+    Record<Exclude<keyof Targets, keyof Contract>, never>,
+> = Targets;
+
 export type TestCase<
   Project extends string = string,
   Id extends TestCaseId = TestCaseId,
