@@ -10,21 +10,37 @@ export function themedFigure(source: string, title: string): SVGSVGElement {
     throw new Error("The figure file is not a valid SVG.");
 
   // Workspace files are untrusted markup once inlined.
-  for (const element of svg.querySelectorAll("script, foreignObject, iframe, metadata"))
+  for (const element of svg.querySelectorAll(
+    "script, foreignObject, iframe, metadata",
+  ))
     element.remove();
   const elements = [svg, ...svg.querySelectorAll("*")];
   for (const element of elements)
     for (const { name, value } of [...element.attributes])
-      if (/^on/i.test(name) || (/href$/i.test(name) && !value.startsWith("#") && !value.startsWith("data:")))
+      if (
+        /^on/i.test(name) ||
+        (/href$/i.test(name) &&
+          !value.startsWith("#") &&
+          !value.startsWith("data:"))
+      )
         element.removeAttribute(name);
 
   // Several figures (or the same one twice) can share a page; keep mask ids unique.
   const prefix = `figure-${++figures}-`;
-  for (const element of svg.querySelectorAll("[id]")) element.id = prefix + element.id;
+  for (const element of svg.querySelectorAll("[id]"))
+    element.id = prefix + element.id;
   for (const element of elements)
     for (const { name, value } of [...element.attributes])
-      if (value.includes("url(#") || ((name === "href" || name === "xlink:href") && value.startsWith("#")))
-        element.setAttribute(name, value.replaceAll("url(#", `url(#${prefix}`).replace(/^#/, `#${prefix}`));
+      if (
+        value.includes("url(#") ||
+        ((name === "href" || name === "xlink:href") && value.startsWith("#"))
+      )
+        element.setAttribute(
+          name,
+          value
+            .replaceAll("url(#", `url(#${prefix}`)
+            .replace(/^#/, `#${prefix}`),
+        );
 
   for (const element of svg.querySelectorAll<SVGElement>("[fill], [stroke]")) {
     if (element.closest("mask")) continue;

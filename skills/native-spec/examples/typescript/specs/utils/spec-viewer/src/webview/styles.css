@@ -915,6 +915,7 @@ code {
 .excalidraw-figure > svg {
   display: block;
   max-width: min(100%, var(--figure-native-width, 100%));
+  max-height: min(60vh, 480px);
   height: auto;
 }
 

@@ -1,4 +1,10 @@
-import { figure, implementsRequirement } from "../../definition/process.js";
+import {
+  figure,
+  implementsRequirement,
+  type Implementation,
+} from "../../definition/process.js";
+import type * as sourceAudit from "../../audit/code-audit.js";
+import type * as sourceCheck from "../../audit/code-check.js";
 import { artifact } from "../factory.js";
 import { codeTraceability } from "../requirements/002-code-traceability.nfr.js";
 
@@ -8,25 +14,29 @@ export const codeTraceabilityAudit = artifact.architectureBlock({
   tags: ["build", "traceability"],
   summaryDiagram: figure(import.meta.url, 1, "Code traceability audit summary"),
   description:
-    "An audit that enumerates app code, reads ABB ownership from TS/JS and CSS comments, and resolves requirement coverage through the project graph. It validates links in memory before the Vite build without generating a ledger or shipping spec tooling in the browser bundle.",
+    "A build-time coverage audit that enumerates app code, resolves erased Implementation type aliases through TypeScript symbols, and derives requirement coverage through the project graph. The native compiler and editor check imported modules and methods; the audit verifies ownership without a ledger or runtime spec dependencies.",
   diagrams: [
     {
       title: "Traceability boundaries",
       language: "mermaid",
       source: `flowchart LR
-  Audit[Source audit] --> Source[TS AST and CSS comments]
-  Source --> Blocks[Annotated architecture blocks]
+  Audit[Coverage audit] --> Source[TypeScript symbol references]
+  Source --> Blocks[Architecture block owners]
   Blocks -->|implements| Requirements[Requirement artifacts]
   Audit --> Inventory[In-memory inventory]`,
     },
   ],
   responsibilities: [
-    "Enumerate source files and named callables independently of their annotations; inherit links only for inline callbacks.",
-    "Require ABB ownership and derive requirements through implements relations, keeping optional direct requirement links distinct.",
-    "Cross-check declared ABB files against source ownership, reject invalid annotations, and expose links directly with optional JSON on stdout and no persisted ledger.",
+    "Enumerate source files and named callables independently of Implementation type aliases; inherit ownership only for inline callbacks.",
+    "Resolve imported modules, constructors, methods, and source-local private helpers through TypeScript symbols, and derive requirements through ABB implementation relations.",
+    "Require exhaustive ownership, validate supporting CSS and declaration files, and expose optional JSON on stdout without editor workers or a persisted ledger.",
   ],
-  files: ["specs/audit/code-audit.ts", "specs/audit/code-check.ts"],
 });
+
+export type CodeTraceabilityImplementation = Implementation<
+  typeof codeTraceabilityAudit,
+  [typeof sourceAudit, typeof sourceCheck]
+>;
 
 export const codeTraceabilityAuditRelations = [
   implementsRequirement(codeTraceabilityAudit, codeTraceability),

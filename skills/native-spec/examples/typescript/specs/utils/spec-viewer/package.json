@@ -10,6 +10,12 @@
     "vscode": "^1.100.0"
   },
   "main": "./dist/extension.cjs",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "Native Spec loads and checks executable specification code from the workspace."
+    }
+  },
   "contributes": {
     "commands": [
       {

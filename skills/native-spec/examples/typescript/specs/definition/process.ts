@@ -230,6 +230,14 @@ export type ArchitectureBlock<
   readonly diagrams?: OneOrMore<Diagram>;
 };
 
+export type Implementation<
+  Owner extends ArchitectureBlock,
+  Targets extends OneOrMore<object>,
+> = {
+  readonly owner: Owner;
+  readonly targets: Targets;
+};
+
 export type TestCase<
   Project extends string = string,
   Id extends TestCaseId = TestCaseId,

@@ -1,4 +1,9 @@
-import { figure, implementsRequirement } from "../../definition/process.js";
+import {
+  figure,
+  implementsRequirement,
+  type Implementation,
+} from "../../definition/process.js";
+import type * as storage from "../../../src/storage.js";
 import { artifact } from "../factory.js";
 import { localData } from "../requirements/003-local-data.sr.js";
 
@@ -25,8 +30,19 @@ export const browserStorage = artifact.architectureBlock({
     "Load, save, import, and export workspaces through domain validation.",
     "Reject corrupt stored data without overwriting it, refuse to save over another tab's changes, and surface write failures such as quota errors.",
   ],
-  files: ["src/storage.ts"],
 });
+
+export type BrowserStorageImplementation = Implementation<
+  typeof browserStorage,
+  [
+    typeof storage,
+    typeof storage.importWorkspace,
+    typeof storage.exportWorkspace,
+    typeof storage.WorkspaceStore,
+    storage.WorkspaceStore["load"],
+    storage.WorkspaceStore["save"],
+  ]
+>;
 
 export const browserStorageRelations = [
   implementsRequirement(browserStorage, localData),

@@ -1,11 +1,24 @@
-import { resolve } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative, resolve } from "node:path";
 import project from "../definition/project.js";
 import { validateProject } from "../definition/process.js";
 import { auditSources, readAppSources } from "./code-audit.js";
 import { validateArchitectureFigures } from "./architecture-audit.js";
 
 const root = resolve(import.meta.dirname, "../..");
-const result = auditSources(readAppSources(root), project);
+const artifacts = resolve(import.meta.dirname, "../artifacts");
+const artifactSources = new Map(
+  readdirSync(artifacts, { recursive: true, encoding: "utf8" })
+    .filter((file) => file.endsWith(".ts"))
+    .map(
+      (file) =>
+        [
+          relative(root, join(artifacts, file)).replaceAll("\\", "/"),
+          readFileSync(join(artifacts, file), "utf8"),
+        ] as const,
+    ),
+);
+const result = auditSources(readAppSources(root), project, artifactSources);
 const errors = [
   ...validateProject(project),
   ...validateArchitectureFigures(project),

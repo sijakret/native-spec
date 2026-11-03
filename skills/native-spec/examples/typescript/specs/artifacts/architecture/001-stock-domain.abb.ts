@@ -1,4 +1,9 @@
-import { figure, implementsRequirement } from "../../definition/process.js";
+import {
+  figure,
+  implementsRequirement,
+  type Implementation,
+} from "../../definition/process.js";
+import type * as domain from "../../../src/domain.js";
 import { artifact } from "../factory.js";
 import { inventory } from "../requirements/001-inventory.sr.js";
 import { orderLifecycle } from "../requirements/002-order-lifecycle.sr.js";
@@ -20,8 +25,24 @@ export const stockDomain = artifact.architectureBlock({
     "Derive reserved and available stock from open orders and summarize low stock.",
     "Validate whole workspaces so storage and import share one definition of valid data.",
   ],
-  files: ["src/domain.ts"],
 });
+
+export type StockDomainImplementation = Implementation<
+  typeof stockDomain,
+  [
+    typeof domain,
+    typeof domain.seedWorkspace,
+    typeof domain.quantity,
+    typeof domain.validateWorkspace,
+    typeof domain.reservedFor,
+    typeof domain.availableFor,
+    typeof domain.restock,
+    typeof domain.reserveOrder,
+    typeof domain.closeOrder,
+    typeof domain.searchProducts,
+    typeof domain.stockSummary,
+  ]
+>;
 
 export const stockDomainRelations = [
   implementsRequirement(stockDomain, inventory),

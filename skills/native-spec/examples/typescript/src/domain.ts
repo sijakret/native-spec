@@ -1,4 +1,17 @@
-/** @specModule ABB-001 */
+import type { Implementation } from "../specs/definition/process.js";
+import type { stockDomain } from "../specs/artifacts/architecture/001-stock-domain.abb.js";
+
+type StockDomainHelpers = Implementation<
+  typeof stockDomain,
+  [
+    typeof record,
+    typeof text,
+    typeof parseProduct,
+    typeof parseOrder,
+    typeof unique,
+  ]
+>;
+
 export interface Product {
   readonly id: string;
   readonly sku: string;
@@ -22,7 +35,6 @@ export interface Workspace {
   readonly orders: readonly Order[];
 }
 
-/** @spec ABB-001 */
 export function seedWorkspace(): Workspace {
   return {
     version: 1,
@@ -60,21 +72,18 @@ export function seedWorkspace(): Workspace {
   };
 }
 
-/** @spec ABB-001 */
 function record(value: unknown): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value))
     throw new Error("Expected an object.");
   return value as Record<string, unknown>;
 }
 
-/** @spec ABB-001 */
 function text(value: unknown, label: string): string {
   if (typeof value !== "string" || !value.trim() || value.length > 120)
     throw new Error(`${label} must contain 1-120 characters.`);
   return value.trim();
 }
 
-/** @spec ABB-001 */
 export function quantity(
   value: unknown,
   label = "Quantity",
@@ -91,7 +100,6 @@ export function quantity(
   return value;
 }
 
-/** @spec ABB-001 */
 function parseProduct(value: unknown): Product {
   const item = record(value);
   return {
@@ -103,7 +111,6 @@ function parseProduct(value: unknown): Product {
   };
 }
 
-/** @spec ABB-001 */
 function parseOrder(value: unknown): Order {
   const item = record(value);
   const status = item.status;
@@ -125,13 +132,11 @@ function parseOrder(value: unknown): Order {
   };
 }
 
-/** @spec ABB-001 */
 function unique(values: readonly string[], label: string): void {
   if (new Set(values).size !== values.length)
     throw new Error(`Duplicate ${label}.`);
 }
 
-/** @spec ABB-001 */
 export function validateWorkspace(value: unknown): Workspace {
   const data = record(value);
   if (
@@ -173,7 +178,6 @@ export function validateWorkspace(value: unknown): Workspace {
   return state;
 }
 
-/** @spec ABB-001 */
 export function reservedFor(state: Workspace, productId: string): number {
   return state.orders
     .filter(
@@ -182,12 +186,10 @@ export function reservedFor(state: Workspace, productId: string): number {
     .reduce((sum, order) => sum + order.quantity, 0);
 }
 
-/** @spec ABB-001 */
 export function availableFor(state: Workspace, product: Product): number {
   return product.onHand - reservedFor(state, product.id);
 }
 
-/** @spec ABB-001 */
 export function restock(
   state: Workspace,
   productId: string,
@@ -206,7 +208,6 @@ export function restock(
   });
 }
 
-/** @spec ABB-001 */
 export function reserveOrder(
   state: Workspace,
   input: { customer: string; productId: string; quantity: number },
@@ -226,7 +227,6 @@ export function reserveOrder(
   return validateWorkspace({ ...state, orders: [...state.orders, order] });
 }
 
-/** @spec ABB-001 */
 export function closeOrder(
   state: Workspace,
   orderId: string,
@@ -249,7 +249,6 @@ export function closeOrder(
   });
 }
 
-/** @spec ABB-001 */
 export function searchProducts(
   state: Workspace,
   query: string,
@@ -260,7 +259,6 @@ export function searchProducts(
   );
 }
 
-/** @spec ABB-001 */
 export function stockSummary(state: Workspace) {
   const onHand = state.products.reduce(
     (sum, product) => sum + product.onHand,

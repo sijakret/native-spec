@@ -9,5 +9,5 @@
     "noEmit": true,
     "types": ["node", "vite/client"]
   },
-  "include": ["src/**/*.ts", "vite.config.ts"]
+  "include": ["src/**/*.ts", "vite.config.ts", "../../../src/cdn.d.ts"]
 }

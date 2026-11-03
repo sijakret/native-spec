@@ -22,14 +22,14 @@ describe("CDN-based deployment", () => {
     );
     expect(scripts).not.toContain("specs/artifacts");
     expect(scripts).not.toContain("privateByDefault");
-    expect(scripts).not.toContain("@spec");
+    expect(scripts).not.toContain("StockDomainHelpers");
+    expect(scripts).not.toContain("InventoryDeskImplementation");
     expect(scripts).not.toContain("REQ-SR-");
     expect(scripts).not.toContain("ABB-");
     const styles = readdirSync(join(root, "dist/assets"))
       .filter((name) => name.endsWith(".css"))
       .map((name) => readFileSync(join(root, "dist/assets", name), "utf8"))
       .join("\n");
-    expect(styles).not.toContain("@spec");
     expect(styles).not.toContain("ABB-");
     expect(existsSync(join(root, "dist/code-inventory.json"))).toBe(false);
   });

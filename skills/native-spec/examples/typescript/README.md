@@ -23,31 +23,42 @@ Data is **unencrypted browser-local storage**, not a shared inventory database. 
 
 ## Exhaustive Code Traceability
 
-Application source declares its implementing architecture blocks through comment annotations:
+Type-only symbol references declare which code implements an architecture block. For example, beside the browser-storage ABB:
 
 ```ts
-/** @specModule ABB-001 */
+import type * as storage from "../../../src/storage.js";
+import type { Implementation } from "../../definition/process.js";
 
-/** @spec ABB-001 */
-export function reserveOrder(...) { ... }
+export type StorageLinks = Implementation<
+  typeof browserStorage,
+  [
+    typeof storage,
+    typeof storage.importWorkspace,
+    typeof storage.exportWorkspace,
+    typeof storage.WorkspaceStore,
+    storage.WorkspaceStore["load"],
+    storage.WorkspaceStore["save"],
+  ]
+>;
 ```
 
-The [source audit](./specs/audit/code-audit.ts) independently enumerates the entire app source tree, validates ABB ownership, and derives requirement coverage through the ABB's `implementsRequirement` relations: **code -> ABB -> requirements**. These comments are checked by the audit, not by TypeScript's type system. The analyzer returns validated links and source positions directly in memory; no handwritten ledger, generated intermediate file, or preprocessing stage is involved.
+The TypeScript compiler and VS Code's existing TypeScript service check imported paths, exports, method names, ABB owner types, and nonempty target tuples. They provide native navigation and rename support, including unsaved edits; no custom validation worker or production stripping plugin is involved. Type-only imports and aliases are erased.
 
-- Every file under `src/` has a `@specModule` header naming at least one ABB, including CSS and declaration files. Header coverage does not cover named callables.
-- Every implemented named callable has its own leading `@spec` annotation naming an ABB. Annotate the containing variable or property for assigned callables. Multiple IDs can be separated by spaces or commas, or written as repeated tags in a multiline comment.
-- Direct requirement IDs are optional refinements, for example `@spec ABB-001 REQ-SR-002`; they cannot replace ABB ownership. Shared implemented requirements are deduplicated. Inventory entries expose `architectureBlocks`, combined `requirements`, and separate `directRequirements` arrays.
-- Inline callbacks inherit their nearest enclosing callable's ABBs and requirement links, or the module's at top level. They are still enumerated with source positions and inheritance provenance.
-- When an ABB declares `files`, source annotations must agree with that list, and every listed `src/` file must exist and name the ABB in its module header. Tooling-only paths stay outside the app audit. File lists do not supply missing source annotations.
-- TypeScript's AST supplies TS/JS comments and declarations, including JSX. PostCSS supplies CSS comments at file granularity. Strings, templates, regex literals, and JSX text do not count as annotations. Other source languages fail closed until a suitable parser is added.
-- Missing, empty, unknown, duplicate, ambiguous, or unattached annotations fail the audit, as do ABBs without implemented requirements, dangling implementation relations, inconsistent file ownership, misplaced module headers, duplicate symbols, dynamic callable names, and undeclared callable assignments. Specs, tests, build/viewer tooling, dependencies, and generated output are outside this explicit production-app boundary.
+The [coverage audit](./specs/audit/code-audit.ts) independently enumerates the app source tree, resolves the native symbol references, requires complete ownership, and derives requirement coverage through `implementsRequirement`: **code -> ABB -> requirements**. The compiler checks that a reference exists; the coverage audit checks that all required references were declared. It returns an in-memory inventory, not a handwritten ledger or generated mirror.
+
+- Every TypeScript module and implemented named callable under `src/` needs an explicit target. A module target does not cover named functions. A class value target links its implemented constructor; indexed-access types link instance methods and accessors.
+- Keep public symbol links beside their ABB. For non-exported helpers, place a local `type Helpers = Implementation<typeof owner, [typeof helper]>` in the source with type-only imports of the owner and marker. Helpers stay private and add no runtime dependency on specs.
+- Multiple ABBs can link the same symbol; an owner union is also supported. Requirements shared through those ABBs are deduplicated. Inventory entries expose `architectureBlocks` and `requirements`.
+- Inline callbacks inherit their nearest named callable's ownership, or the module's at top level, and retain source positions and inheritance provenance.
+- Use ABB `files` only for supporting CSS and ambient `.d.ts` files. The audit checks their existence and ownership; these plain paths do not gain native TypeScript symbol diagnostics. TypeScript implementation files use native imports instead of duplicated path lists.
+- The audit rejects missing ownership, unknown owners, unresolved/duplicate targets, dangling implementation relations, unsupported source languages, dynamic callable names, and undeclared callable assignments. Tests, specs, viewer/build tooling, dependencies, and generated output remain outside the production-app inventory.
 
 ```sh
 npm run code:check
 npm run --silent code:inventory   # JSON on stdout
 ```
 
-`npm run build` enforces types, graph consistency, and code coverage, then builds only the app. Vite strips the annotations from production JS and CSS. `code:inventory` is an optional stdout view, not a build input or an automatically generated file. Links are not proof that code fulfills a requirement: domain, persistence, deployment, audit-fixture tests, and browser validation establish behavior separately.
+`npm run build` enforces types, graph consistency, and code coverage, then builds only the app. Deployment tests verify that spec imports, type markers, and ABB/requirement IDs do not enter the production bundle. `code:inventory` is an optional stdout view, not a build input or an automatically generated file. Links do not prove behavioral correctness; domain, persistence, deployment, and browser checks establish that separately.
 
 ## Acceptance-Criterion Verification
 
@@ -117,10 +128,10 @@ specs/
   artifacts/index.ts             explicit `artifacts` + collected `relations` tuples
   definition/process.ts          model, typed relations, static + runtime checks
   definition/project.ts          defineProject(...), default export
-  audit/code-audit.ts            source annotation parsing, enumeration, coverage
+  audit/code-audit.ts            native symbol resolution, enumeration, coverage
   audit/architecture-audit.ts    editable SVG scenes, visible ABB coverage, summaries
   audit/code-check.ts            code:check / code:inventory (stdout only)
-  audit/code-audit.test.ts       annotation and parser invariants
+  audit/code-audit.test.ts       symbol-link and coverage invariants
   audit/process.test.ts          artifact/process invariants and rendering checks
   audit/process.type-test.ts     compile-time process invariants
   utils/output/                  views, Markdown and HTML renderers
@@ -139,18 +150,18 @@ specs/
     "specs:test": "npm run specs:check && vitest run specs/audit specs/viewer.test.ts",
      "specs:render": "tsx specs/utils/cli.ts"
    },
-   "devDependencies": { "@types/node": "*", "@xmldom/xmldom": "*", "postcss": "*", "tsx": "*", "typescript": "*", "vitest": "*" }
+   "devDependencies": { "@types/node": "*", "@xmldom/xmldom": "*", "tsx": "*", "typescript": "*", "vitest": "*" }
    ```
-   The spec project must resolve `tsx` and `typescript` from its containing package; the viewer loads both there. `specs/tsconfig.json` is standalone; exclude `specs/` from the app's tsconfig if its `include` would pick it up.
+   The spec project must resolve `tsx` and `typescript` from its containing package; the viewer loads both there. Configure the spec TypeScript project with the libraries and ambient declarations needed by the app symbols it imports. This example includes DOM, Vite CSS types, and `src/cdn.d.ts`. Type-only imports erase runtime dependencies, not compile-time dependencies.
 3. Set the project id in `artifacts/factory.ts`, title in `definition/project.ts`, and overview in `artifacts/architecture/000-architecture.ts`.
-4. Tailor the model and replace the example artifacts. If retaining the example model, follow the main skill's example greenfield or brownfield path: start with `SPRINT-0001`; use `planned` until implemented, or `completed` for a brownfield baseline with `implementation` recording the pre-existing state. To retain code auditing, annotate application source and adapt the source root in `audit/code-check.ts`, then wire that command into your build. Keep artifact, process, and annotation invariants under `audit/`.
+4. Tailor the model and replace the example artifacts. If retaining the example model, follow the main skill's example greenfield or brownfield path: start with `SPRINT-0001`; use `planned` until implemented, or `completed` for a brownfield baseline with `implementation` recording the pre-existing state. To retain coverage auditing, declare native Implementation links and adapt the source root in `audit/code-check.ts`, then wire that command into your build. Keep artifact, process, and symbol-link invariants under `audit/`.
 5. Iterate on `npm run specs:check` until clean and `npm run specs:test` passes.
 
 ## Maintaining the Example
 
 - Export canonical outgoing links beside their source artifacts as named `as const` tuples; register artifacts and collect the relation tuples in `artifacts/index.ts`.
-- Test cases use `code` for real test file paths; architecture blocks use `files` for source paths.
-- An architecture block is one component with its own responsibility boundary, not the whole app. The example has four: stock and order domain, validated browser storage, inventory desk UI, and the build-time code traceability audit. Each lists its files and implements only the requirements it realizes; a requirement such as REQ-SR-001 may be implemented by several blocks (domain rules plus UI).
+- Test cases use `code` for real test paths. Link TypeScript code with `Implementation` aliases; reserve ABB `files` for supporting CSS and ambient declarations.
+- An architecture block is one component with its own responsibility boundary, not the whole app. The example has four: stock and order domain, validated browser storage, inventory desk UI, and the build-time coverage audit. Each links its source symbols and implements only the requirements it realizes; a requirement such as REQ-SR-001 may be implemented by several blocks (domain rules plus UI).
 - Keep `artifacts/architecture/000-architecture.ts` current: its structured overview diagram must contain every registered ABB, including build-time tooling. Import ABBs directly from their owning modules, not the collecting index.
 - Give every ABB a required `summaryDiagram`; use Excalidraw for the example's system and summary diagrams. Preserve visible ABB nodes, their bound ID labels, and `customData.nativeSpec` references when editing the SVG sidecars.
 - Sprints include tasks, verification, a Mermaid diagram, `architectureReview` tasks naming affected ABBs (or a done task explaining no impact), and `documentationIntegrity` tasks.
@@ -166,6 +177,7 @@ Acceptance criteria and relations share a counted list-box renderer and common r
 
 - Install: `npm install --prefix specs/utils/spec-viewer && npm run install:local --prefix specs/utils/spec-viewer` (needs the `code` CLI on PATH), then reload the window.
 - Open the architecture article with **Native Spec: Open Overview** in the Command Palette, or open `specs/artifacts/architecture/000-architecture.ts`. It introduces the architecture with diagrams and links only to its building blocks. Open `specs/artifacts/index.ts` for the separate specification catalog, intended uses, and metrics.
+- Open source with VS Code's standard TypeScript editor for native missing-module/member diagnostics, go-to-definition, and rename. There is no separate link-validation command, background audit process, or custom diagnostics provider. Run `npm run code:check` or the normal build for exhaustive coverage and graph/figure checks. The artifact viewer evaluates executable specs only in trusted workspaces.
 - Every page has a compact breadcrumb header linking back to the specification index, with no sidebar. ABB breadcrumbs also link to the architecture article. Artifact and relation links open in the custom editor.
 - Relations appear as compact cards grouped by direction and type, with counts and one linked artifact per row. Rows show the artifact icon, muted ID, and title inline when space permits, wrap long titles without truncation, and retain hover/focus source actions.
 - Checklists use bullet-free rows with a fixed checkbox column, keeping wrapped text and nested tasks aligned while preserving editing and source actions.
@@ -192,6 +204,6 @@ Import targets directly from their owning artifact files, not from the collectin
 Keep the overview in specs/artifacts/architecture/000-architecture.ts; use architectureDiagram with actual ABB values, and include every registered ABB in its blocks. Runtime validation checks completeness; TypeScript checks node and endpoint kinds.
 Use architectureFigure for an Excalidraw whole-system overview, and give every ABB a summaryDiagram (Excalidraw or Mermaid). Preserve visible ABB node references and bound ID labels in the editable scenes; the audit checks the actual SVGs, not just the TypeScript block lists.
 Give acceptance criteria stable local IDs and link tests with verifies(testCase, requirement, criterionId); every criterion needs coverage.
-Link app code to ABBs with @specModule file headers and @spec callable comments; derive requirement coverage through implementsRequirement relations, with optional direct requirement refinements. Cross-check declared ABB files. Validate directly from source without a ledger or generated intermediate files, and keep invariant tests and code audits in specs/audit/.
+Link app code to ABBs with erased Implementation<typeof abb, [typeof module, typeof module.function, ModuleClass["method"]]> type aliases and import type. Keep public links beside ABBs and private-helper links source-local. Native TypeScript checks symbol existence; the build audit checks exhaustive ownership and derives requirements through implementsRequirement. Reserve ABB files for CSS/ambient declarations. Do not add a custom validation worker, comment-ID parser, runtime annotation wrapper, ledger, or generated intermediate files. Keep invariant tests and code audits in specs/audit/.
 For product changes: update artifacts and add a sprint, run `npm run specs:check` before implementing, keep architecture blocks current, and finish with `npm run specs:test`.
 ```

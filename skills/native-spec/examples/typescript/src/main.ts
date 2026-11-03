@@ -1,10 +1,42 @@
-/** @specModule ABB-003 */
+import type { Implementation } from "../specs/definition/process.js";
+import type { inventoryDesk } from "../specs/artifacts/architecture/003-inventory-desk.abb.js";
 import {
-  availableFor, closeOrder, reservedFor, reserveOrder, restock,
-  searchProducts, seedWorkspace, stockSummary, type Workspace,
+  availableFor,
+  closeOrder,
+  reservedFor,
+  reserveOrder,
+  restock,
+  searchProducts,
+  seedWorkspace,
+  stockSummary,
+  type Workspace,
 } from "./domain.js";
 import { exportWorkspace, importWorkspace, WorkspaceStore } from "./storage.js";
 import "./styles.css";
+
+type InventoryDeskImplementation = Implementation<
+  typeof inventoryDesk,
+  [
+    typeof currentState,
+    typeof errorText,
+    typeof perform,
+    typeof formValues,
+    typeof onRestock,
+    typeof onReserve,
+    typeof onCloseOrder,
+    typeof onNavigate,
+    typeof onSearch,
+    typeof onReset,
+    typeof onExport,
+    typeof onImport,
+    typeof orderTable,
+    typeof overviewPage,
+    typeof inventoryPage,
+    typeof ordersPage,
+    typeof draw,
+    typeof boot,
+  ]
+>;
 
 type View = "overview" | "inventory" | "orders";
 let html: typeof import("lit-html").html;
@@ -19,21 +51,24 @@ let importing = false;
 const root = document.getElementById("app");
 if (!root) throw new Error("Stockroom mount point is missing.");
 
-/** @spec ABB-003 */
 function currentState(): Workspace {
-  if (!state) throw new Error("No valid workspace is loaded. Import a valid backup or reset the demo.");
+  if (!state)
+    throw new Error(
+      "No valid workspace is loaded. Import a valid backup or reset the demo.",
+    );
   return state;
 }
 
-/** @spec ABB-003 */
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** @spec ABB-003 */
 function perform(operation: () => Workspace, message: string): void {
   try {
-    if (!store) throw new Error("Browser storage is unavailable. Enable storage and reload.");
+    if (!store)
+      throw new Error(
+        "Browser storage is unavailable. Enable storage and reload.",
+      );
     if (importing) throw new Error("Wait for the current import to finish.");
     const next = operation();
     store.save(next);
@@ -47,7 +82,6 @@ function perform(operation: () => Workspace, message: string): void {
   draw();
 }
 
-/** @spec ABB-003 */
 function formValues(event: Event): FormData {
   event.preventDefault();
   if (!(event.currentTarget instanceof HTMLFormElement))
@@ -55,39 +89,58 @@ function formValues(event: Event): FormData {
   return new FormData(event.currentTarget);
 }
 
-/** @spec ABB-003 */
 function onRestock(event: Event): void {
   const form = formValues(event);
-  perform(() => restock(currentState(), String(form.get("product")), Number(form.get("quantity"))),
-    "Stock received.");
+  perform(
+    () =>
+      restock(
+        currentState(),
+        String(form.get("product")),
+        Number(form.get("quantity")),
+      ),
+    "Stock received.",
+  );
 }
 
-/** @spec ABB-003 */
 function onReserve(event: Event): void {
   const form = formValues(event);
-  perform(() => reserveOrder(currentState(), {
-    customer: String(form.get("customer") ?? ""),
-    productId: String(form.get("product")),
-    quantity: Number(form.get("quantity")),
-  }, crypto.randomUUID(), new Date().toISOString()), "Order reserved. Stock is held until fulfillment or cancellation.");
+  perform(
+    () =>
+      reserveOrder(
+        currentState(),
+        {
+          customer: String(form.get("customer") ?? ""),
+          productId: String(form.get("product")),
+          quantity: Number(form.get("quantity")),
+        },
+        crypto.randomUUID(),
+        new Date().toISOString(),
+      ),
+    "Order reserved. Stock is held until fulfillment or cancellation.",
+  );
 }
 
-/** @spec ABB-003 */
 function onCloseOrder(event: Event): void {
   const button = event.currentTarget;
-  if (!(button instanceof HTMLButtonElement)) throw new Error("Expected an order action button.");
-  perform(() => {
-    const status = button.dataset.status;
-    if (status !== "fulfilled" && status !== "cancelled")
-      throw new Error("Unknown order action.");
-    return closeOrder(currentState(), button.dataset.order ?? "", status);
-  }, button.dataset.status === "fulfilled" ? "Order fulfilled." : "Order cancelled. Reserved stock released.");
+  if (!(button instanceof HTMLButtonElement))
+    throw new Error("Expected an order action button.");
+  perform(
+    () => {
+      const status = button.dataset.status;
+      if (status !== "fulfilled" && status !== "cancelled")
+        throw new Error("Unknown order action.");
+      return closeOrder(currentState(), button.dataset.order ?? "", status);
+    },
+    button.dataset.status === "fulfilled"
+      ? "Order fulfilled."
+      : "Order cancelled. Reserved stock released.",
+  );
 }
 
-/** @spec ABB-003 */
 function onNavigate(event: Event): void {
   const tab = event.currentTarget;
-  if (!(tab instanceof HTMLButtonElement)) throw new Error("Expected a navigation button.");
+  if (!(tab instanceof HTMLButtonElement))
+    throw new Error("Expected a navigation button.");
   const target = tab.dataset.view;
   if (target !== "overview" && target !== "inventory" && target !== "orders")
     throw new Error("Unknown page.");
@@ -95,23 +148,27 @@ function onNavigate(event: Event): void {
   draw();
 }
 
-/** @spec ABB-003 */
 function onSearch(event: Event): void {
-  if (!(event.currentTarget instanceof HTMLInputElement)) throw new Error("Expected a search input.");
+  if (!(event.currentTarget instanceof HTMLInputElement))
+    throw new Error("Expected a search input.");
   query = event.currentTarget.value;
   draw();
 }
 
-/** @spec ABB-003 */
 function onReset(): void {
-  if (window.confirm("Replace this workspace with sample inventory? Export a backup first."))
+  if (
+    window.confirm(
+      "Replace this workspace with sample inventory? Export a backup first.",
+    )
+  )
     perform(seedWorkspace, "Demo reset. Sample inventory is ready.");
 }
 
-/** @spec ABB-003 */
 function onExport(): void {
   try {
-    const blob = new Blob([exportWorkspace(currentState())], { type: "application/json" });
+    const blob = new Blob([exportWorkspace(currentState())], {
+      type: "application/json",
+    });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -127,10 +184,10 @@ function onExport(): void {
   draw();
 }
 
-/** @spec ABB-003 */
 async function onImport(event: Event): Promise<void> {
   const input = event.currentTarget;
-  if (!(input instanceof HTMLInputElement)) throw new Error("Expected an import input.");
+  if (!(input instanceof HTMLInputElement))
+    throw new Error("Expected an import input.");
   const file = input.files?.[0];
   if (!file) return;
   try {
@@ -139,7 +196,8 @@ async function onImport(event: Event): Promise<void> {
     importing = true;
     draw();
     const next = importWorkspace(await file.text());
-    if (!window.confirm("Replace this workspace with the imported data?")) return;
+    if (!window.confirm("Replace this workspace with the imported data?"))
+      return;
     if (!store) throw new Error("Browser storage is unavailable.");
     store.save(next);
     state = next;
@@ -155,114 +213,342 @@ async function onImport(event: Event): Promise<void> {
   }
 }
 
-/** @spec ABB-003 */
 function orderTable(workspace: Workspace, recent = false) {
-  const orders = [...workspace.orders]
-    .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  const orders = [...workspace.orders].sort((left, right) =>
+    right.createdAt.localeCompare(left.createdAt),
+  );
   const shown = recent ? orders.slice(0, 5) : orders;
   return shown.length === 0
-    ? html`<p class="empty">No orders yet. Reserve your first order in the Orders tab.</p>`
-    : html`<div class="table-scroll"><table>
-      <thead><tr><th>Customer / order</th><th>Product</th><th class="numeric">Units</th><th>Status</th><th>Actions</th></tr></thead>
-      <tbody>${shown.map((order) => html`<tr>
-        <td><strong>${order.customer}</strong><small>${order.id.slice(0, 8)}</small></td>
-        <td>${workspace.products.find((product) => product.id === order.productId)?.name}</td>
-        <td class="numeric">${order.quantity}</td>
-        <td><span class="badge ${order.status}">${order.status}</span></td>
-        <td>${order.status === "reserved" ? html`<div class="row-actions">
-          <button data-order=${order.id} data-status="fulfilled" @click=${onCloseOrder} ?disabled=${importing}>Fulfill</button>
-          <button class="quiet" data-order=${order.id} data-status="cancelled" @click=${onCloseOrder} ?disabled=${importing}>Cancel</button>
-        </div>` : html`<span class="muted">Closed</span>`}</td>
-      </tr>`)}</tbody>
-    </table></div>`;
+    ? html`<p class="empty">
+        No orders yet. Reserve your first order in the Orders tab.
+      </p>`
+    : html`<div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Customer / order</th>
+              <th>Product</th>
+              <th class="numeric">Units</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${shown.map(
+              (order) =>
+                html`<tr>
+                  <td>
+                    <strong>${order.customer}</strong
+                    ><small>${order.id.slice(0, 8)}</small>
+                  </td>
+                  <td>
+                    ${workspace.products.find(
+                      (product) => product.id === order.productId,
+                    )?.name}
+                  </td>
+                  <td class="numeric">${order.quantity}</td>
+                  <td>
+                    <span class="badge ${order.status}">${order.status}</span>
+                  </td>
+                  <td>
+                    ${order.status === "reserved"
+                      ? html`<div class="row-actions">
+                          <button
+                            data-order=${order.id}
+                            data-status="fulfilled"
+                            @click=${onCloseOrder}
+                            ?disabled=${importing}
+                          >
+                            Fulfill
+                          </button>
+                          <button
+                            class="quiet"
+                            data-order=${order.id}
+                            data-status="cancelled"
+                            @click=${onCloseOrder}
+                            ?disabled=${importing}
+                          >
+                            Cancel
+                          </button>
+                        </div>`
+                      : html`<span class="muted">Closed</span>`}
+                  </td>
+                </tr>`,
+            )}
+          </tbody>
+        </table>
+      </div>`;
 }
 
-/** @spec ABB-003 */
 function overviewPage(workspace: Workspace) {
   const summary = stockSummary(workspace);
-  const low = workspace.products.filter((product) =>
-    availableFor(workspace, product) <= product.lowStockAt);
-  return html`
-    <div class="page-heading"><div><p class="eyebrow">YOUR STOCKROOM, AT A GLANCE</p><h1>A clear view of what's in stock.</h1>
-      <p class="muted">Reserve with confidence. Ship without surprises.</p></div><span class="workspace-tag">Single-user demo</span></div>
+  const low = workspace.products.filter(
+    (product) => availableFor(workspace, product) <= product.lowStockAt,
+  );
+  return html` <div class="page-heading">
+      <div>
+        <p class="eyebrow">YOUR STOCKROOM, AT A GLANCE</p>
+        <h1>A clear view of what's in stock.</h1>
+        <p class="muted">Reserve with confidence. Ship without surprises.</p>
+      </div>
+      <span class="workspace-tag">Single-user demo</span>
+    </div>
     <section class="metrics" aria-label="Stock summary">
-      ${[["On hand", summary.onHand], ["Reserved", summary.reserved], ["Available", summary.available], ["Open orders", summary.openOrders]]
-        .map(([label, count]) => html`<div><span>${label}</span><strong>${count}</strong></div>`)}
+      ${[
+        ["On hand", summary.onHand],
+        ["Reserved", summary.reserved],
+        ["Available", summary.available],
+        ["Open orders", summary.openOrders],
+      ].map(
+        ([label, count]) =>
+          html`<div><span>${label}</span><strong>${count}</strong></div>`,
+      )}
     </section>
-    <section class="panel"><div class="section-heading"><h2>Needs attention</h2><span class="muted">${low.length} low-stock products</span></div>
-      ${low.length ? html`<div class="low-stock">${low.map((product) => html`<div><strong>${product.name}</strong>
-        <span>${availableFor(workspace, product)} available <small>/ threshold ${product.lowStockAt}</small></span></div>`)}</div>`
-        : html`<p class="empty">All products are above their low-stock thresholds.</p>`}
+    <section class="panel">
+      <div class="section-heading">
+        <h2>Needs attention</h2>
+        <span class="muted">${low.length} low-stock products</span>
+      </div>
+      ${low.length
+        ? html`<div class="low-stock">
+            ${low.map(
+              (product) =>
+                html`<div>
+                  <strong>${product.name}</strong>
+                  <span
+                    >${availableFor(workspace, product)} available
+                    <small>/ threshold ${product.lowStockAt}</small></span
+                  >
+                </div>`,
+            )}
+          </div>`
+        : html`<p class="empty">
+            All products are above their low-stock thresholds.
+          </p>`}
     </section>
-    <section class="panel"><div class="section-heading"><h2>Recent orders</h2><span class="muted">Latest five</span></div>
+    <section class="panel">
+      <div class="section-heading">
+        <h2>Recent orders</h2>
+        <span class="muted">Latest five</span>
+      </div>
       ${orderTable(workspace, true)}
     </section>`;
 }
 
-/** @spec ABB-003 */
 function inventoryPage(workspace: Workspace) {
   const products = searchProducts(workspace, query);
-  return html`
-    <div class="page-heading"><div><p class="eyebrow">INVENTORY</p><h1>Everything on the shelf.</h1><p class="muted">Reservations hold stock; fulfillment removes it.</p></div>
-      <label class="search">Search products<input type="search" placeholder="Name or SKU" .value=${query} @input=${onSearch}></label></div>
-    <section class="panel"><div class="table-scroll"><table>
-      <thead><tr><th>Product</th><th class="numeric">On hand</th><th class="numeric">Reserved</th><th class="numeric">Available</th><th>Receive stock</th></tr></thead>
-      <tbody>${products.map((product) => html`<tr>
-        <td><strong>${product.name}</strong><small>${product.sku}</small></td>
-        <td class="numeric">${product.onHand}</td><td class="numeric">${reservedFor(workspace, product.id)}</td>
-        <td class="numeric"><span class=${availableFor(workspace, product) <= product.lowStockAt ? "low" : ""}>${availableFor(workspace, product)}</span></td>
-        <td><form class="inline-form" @submit=${onRestock}><input type="hidden" name="product" value=${product.id}>
-          <input aria-label=${`Restock ${product.name}`} name="quantity" type="number" min="1" step="1" required placeholder="Units">
-          <button type="submit" ?disabled=${importing}>Receive</button></form></td>
-      </tr>`)}</tbody>
-    </table></div>${products.length === 0 ? html`<p class="empty">No products match "${query}".</p>` : ""}</section>`;
+  return html` <div class="page-heading">
+      <div>
+        <p class="eyebrow">INVENTORY</p>
+        <h1>Everything on the shelf.</h1>
+        <p class="muted">Reservations hold stock; fulfillment removes it.</p>
+      </div>
+      <label class="search"
+        >Search products<input
+          type="search"
+          placeholder="Name or SKU"
+          .value=${query}
+          @input=${onSearch}
+      /></label>
+    </div>
+    <section class="panel">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th class="numeric">On hand</th>
+              <th class="numeric">Reserved</th>
+              <th class="numeric">Available</th>
+              <th>Receive stock</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${products.map(
+              (product) =>
+                html`<tr>
+                  <td>
+                    <strong>${product.name}</strong
+                    ><small>${product.sku}</small>
+                  </td>
+                  <td class="numeric">${product.onHand}</td>
+                  <td class="numeric">${reservedFor(workspace, product.id)}</td>
+                  <td class="numeric">
+                    <span
+                      class=${availableFor(workspace, product) <=
+                      product.lowStockAt
+                        ? "low"
+                        : ""}
+                      >${availableFor(workspace, product)}</span
+                    >
+                  </td>
+                  <td>
+                    <form class="inline-form" @submit=${onRestock}>
+                      <input type="hidden" name="product" value=${product.id} />
+                      <input
+                        aria-label=${`Restock ${product.name}`}
+                        name="quantity"
+                        type="number"
+                        min="1"
+                        step="1"
+                        required
+                        placeholder="Units"
+                      />
+                      <button type="submit" ?disabled=${importing}>
+                        Receive
+                      </button>
+                    </form>
+                  </td>
+                </tr>`,
+            )}
+          </tbody>
+        </table>
+      </div>
+      ${products.length === 0
+        ? html`<p class="empty">No products match "${query}".</p>`
+        : ""}
+    </section>`;
 }
 
-/** @spec ABB-003 */
 function ordersPage(workspace: Workspace) {
-  return html`
-    <div class="page-heading"><div><p class="eyebrow">ORDERS</p><h1>A promise you can keep.</h1><p class="muted">One product per order. Reserve now, fulfill or cancel later.</p></div></div>
-    <section class="panel"><h2>Reserve an order</h2>
+  return html` <div class="page-heading">
+      <div>
+        <p class="eyebrow">ORDERS</p>
+        <h1>A promise you can keep.</h1>
+        <p class="muted">
+          One product per order. Reserve now, fulfill or cancel later.
+        </p>
+      </div>
+    </div>
+    <section class="panel">
+      <h2>Reserve an order</h2>
       <form class="order-form" @submit=${onReserve}>
-        <label>Customer<input name="customer" required maxlength="120" placeholder="e.g. Studio North"></label>
-        <label>Product<select name="product" required>
-          ${workspace.products.map((product) => html`<option value=${product.id}>${product.name} (${availableFor(workspace, product)} available)</option>`)}
-        </select></label>
-        <label>Units<input name="quantity" type="number" min="1" step="1" required value="1"></label>
-        <button class="primary" type="submit" ?disabled=${importing || workspace.products.length === 0}>Reserve stock</button>
+        <label
+          >Customer<input
+            name="customer"
+            required
+            maxlength="120"
+            placeholder="e.g. Studio North"
+        /></label>
+        <label
+          >Product<select name="product" required>
+            ${workspace.products.map(
+              (product) =>
+                html`<option value=${product.id}>
+                  ${product.name} (${availableFor(workspace, product)}
+                  available)
+                </option>`,
+            )}
+          </select></label
+        >
+        <label
+          >Units<input
+            name="quantity"
+            type="number"
+            min="1"
+            step="1"
+            required
+            value="1"
+        /></label>
+        <button
+          class="primary"
+          type="submit"
+          ?disabled=${importing || workspace.products.length === 0}
+        >
+          Reserve stock
+        </button>
       </form>
     </section>
-    <section class="panel"><div class="section-heading"><h2>All orders</h2><span class="muted">${workspace.orders.length} total</span></div>${orderTable(workspace)}</section>`;
+    <section class="panel">
+      <div class="section-heading">
+        <h2>All orders</h2>
+        <span class="muted">${workspace.orders.length} total</span>
+      </div>
+      ${orderTable(workspace)}
+    </section>`;
 }
 
-/** @spec ABB-003 */
 function draw(): void {
   if (!root) throw new Error("Stockroom mount point is missing.");
-  render(html`
-    <header class="app-header"><a class="brand" href="./"><span class="brand-mark">A</span> Acme <span>Stockroom</span></a>
-      <nav aria-label="Main navigation">${(["overview", "inventory", "orders"] as const).map((tab) =>
-        html`<button data-view=${tab} aria-current=${view === tab ? "page" : "false"} @click=${onNavigate}>${tab}</button>`)}</nav>
-      <span class="local-indicator"><span></span> Local workspace</span></header>
-    <main>
-      <div class="notice ${failed ? "failure" : ""}" role=${failed ? "alert" : "status"} aria-live="polite">${notice}</div>
-      ${state ? view === "overview" ? overviewPage(state) : view === "inventory" ? inventoryPage(state) : ordersPage(state)
-        : html`<section class="panel recovery"><h1>Your saved workspace could not be opened.</h1>
-          <p>Nothing has been overwritten. Import a valid backup, or reset the demo below to deliberately replace it.</p></section>`}
-    </main>
-    <footer><p>Browser-only demo. Data is stored locally, unencrypted. Export a backup before clearing browser data.</p>
-      <div class="footer-actions">
-        <button class="quiet" @click=${onExport} ?disabled=${!state || importing}>Export JSON</button>
-        <label class="file-button" aria-disabled=${importing}>${importing ? "Importing..." : "Import JSON"}<input type="file" accept=".json,application/json" aria-label="Import JSON" @change=${onImport} ?disabled=${importing}></label>
-        <button class="quiet" @click=${onReset} ?disabled=${importing}>Reset demo</button>
-      </div>
-      <small>No backend or multi-user synchronization. Runtime renderer: pinned CDN dependency; network access is required to load it.</small>
-    </footer>`, root);
+  render(
+    html` <header class="app-header">
+        <a class="brand" href="./"
+          ><span class="brand-mark">A</span> Acme <span>Stockroom</span></a
+        >
+        <nav aria-label="Main navigation">
+          ${(["overview", "inventory", "orders"] as const).map(
+            (tab) =>
+              html`<button
+                data-view=${tab}
+                aria-current=${view === tab ? "page" : "false"}
+                @click=${onNavigate}
+              >
+                ${tab}
+              </button>`,
+          )}
+        </nav>
+        <span class="local-indicator"><span></span> Local workspace</span>
+      </header>
+      <main>
+        <div
+          class="notice ${failed ? "failure" : ""}"
+          role=${failed ? "alert" : "status"}
+          aria-live="polite"
+        >
+          ${notice}
+        </div>
+        ${state
+          ? view === "overview"
+            ? overviewPage(state)
+            : view === "inventory"
+              ? inventoryPage(state)
+              : ordersPage(state)
+          : html`<section class="panel recovery">
+              <h1>Your saved workspace could not be opened.</h1>
+              <p>
+                Nothing has been overwritten. Import a valid backup, or reset
+                the demo below to deliberately replace it.
+              </p>
+            </section>`}
+      </main>
+      <footer>
+        <p>
+          Browser-only demo. Data is stored locally, unencrypted. Export a
+          backup before clearing browser data.
+        </p>
+        <div class="footer-actions">
+          <button
+            class="quiet"
+            @click=${onExport}
+            ?disabled=${!state || importing}
+          >
+            Export JSON
+          </button>
+          <label class="file-button" aria-disabled=${importing}
+            >${importing ? "Importing..." : "Import JSON"}<input
+              type="file"
+              accept=".json,application/json"
+              aria-label="Import JSON"
+              @change=${onImport}
+              ?disabled=${importing}
+          /></label>
+          <button class="quiet" @click=${onReset} ?disabled=${importing}>
+            Reset demo
+          </button>
+        </div>
+        <small
+          >No backend or multi-user synchronization. Runtime renderer: pinned
+          CDN dependency; network access is required to load it.</small
+        >
+      </footer>`,
+    root,
+  );
 }
 
-/** @spec ABB-003 */
 async function boot(): Promise<void> {
   try {
-    ({ html, render } = await import("https://cdn.jsdelivr.net/npm/lit-html@3.3.1/+esm"));
+    ({ html, render } =
+      await import("https://cdn.jsdelivr.net/npm/lit-html@3.3.1/+esm"));
   } catch (error) {
     if (root) {
       root.textContent = `Unable to load the CDN renderer. Check your connection and allow cdn.jsdelivr.net, then reload. ${errorText(error)}`;

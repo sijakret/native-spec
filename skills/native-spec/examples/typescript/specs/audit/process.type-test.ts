@@ -7,7 +7,11 @@ import {
   implementsRequirement,
   verifies,
   type CodeBlock,
+  type Implementation,
 } from "../definition/process.js";
+import type * as storage from "../../src/storage.js";
+// @ts-expect-error module paths are checked by the native compiler
+import type * as MissingSource from "../../src/missing-native-link.js";
 
 // @ts-expect-error every diagram requires an explicit title
 const untitledDiagram: CodeBlock = {
@@ -47,6 +51,30 @@ const architecture = artifact.architectureBlock({
 });
 
 const { summaryDiagram, ...withoutSummary } = architecture;
+export type NativeStorageLinks = Implementation<
+  typeof architecture,
+  [
+    typeof storage,
+    typeof storage.importWorkspace,
+    storage.WorkspaceStore["save"],
+  ]
+>;
+
+// @ts-expect-error link owners must be architecture blocks
+export type InvalidLinkOwner = Implementation<
+  typeof software,
+  [typeof storage]
+>;
+
+// @ts-expect-error a link must identify at least one source target
+export type EmptyLinks = Implementation<typeof architecture, []>;
+
+// @ts-expect-error method names are checked by the TypeScript compiler
+export type MissingMethod = Implementation<
+  typeof architecture,
+  [storage.WorkspaceStore["missingMethod"]]
+>;
+
 // @ts-expect-error every building block requires its own summary diagram
 artifact.architectureBlock(withoutSummary);
 

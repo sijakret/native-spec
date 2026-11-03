@@ -92,7 +92,7 @@ export const views: {
     summaryDiagram: { kind: "diagram" },
     diagrams: code,
     responsibilities: list("Responsibilities"),
-    files: list("Files and Folders"),
+    files: list("Supporting Files"),
   },
   "test-case": {
     description: paragraph,

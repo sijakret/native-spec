@@ -32,8 +32,8 @@ export const firstSliceSprint = artifact.sprint({
     },
   ],
   verification: [
-    "npm test and npm run build pass across domain, storage, deployment, process invariants, viewer, and annotation-audit fixtures.",
-    "Source annotation audit: 5 source files, 38 ABB-owned named callables, and 34 inherited callbacks; requirements resolve through the architecture graph, with optional JSON on stdout and no generated ledger.",
+    "npm test and npm run build pass across domain, storage, deployment, process invariants, viewer, and native symbol-link fixtures.",
+    "Native symbol coverage audit: 5 source files, 38 ABB-owned named callables, and 34 inherited callbacks; requirements resolve through the architecture graph, with optional JSON on stdout and no generated ledger.",
     "Production browser checks: inventory search and receipts, reservation/fulfillment/cancellation, overselling rejection, reload, valid/invalid import, export, and confirmed/cancelled reset.",
     "Recovery checks: corrupt data is preserved, quota and stale-tab errors do not adopt unsaved state, CDN failure is actionable, and all three views avoid document overflow at desktop and mobile widths.",
   ],
@@ -54,7 +54,7 @@ export const firstSliceSprint = artifact.sprint({
   ],
   implementation: [
     "Immutable stock and order rules, validated local persistence, and a Vite UI with a pinned runtime CDN renderer.",
-    "Source-owned ABB annotations with graph-derived requirement coverage, independent TypeScript AST enumeration, and CSS comment parsing; audits and invariant tests live under specs/audit, and spec tooling stays outside the browser bundle.",
+    "Erased Implementation type aliases with native imported module/method references, source-local links for private helpers, graph-derived requirement coverage, and independent callable enumeration. Audits and invariant tests live under specs/audit; no validation worker, custom diagnostic layer, or runtime spec import ships in the browser bundle.",
   ],
   architectureReview: [
     {

@@ -1,4 +1,9 @@
-import { figure, implementsRequirement } from "../../definition/process.js";
+import {
+  figure,
+  implementsRequirement,
+  type Implementation,
+} from "../../definition/process.js";
+import type * as desk from "../../../src/main.js";
 import { artifact } from "../factory.js";
 import { cdnApp } from "../requirements/001-cdn-app.nfr.js";
 import { inventory } from "../requirements/001-inventory.sr.js";
@@ -27,8 +32,13 @@ export const inventoryDesk = artifact.architectureBlock({
     "Adopt a new workspace only after storage has committed it; show actionable errors otherwise.",
     "Load the renderer from the pinned CDN and fail visibly when it is unavailable.",
   ],
-  files: ["src/main.ts", "src/styles.css", "src/cdn.d.ts"],
+  files: ["src/styles.css", "src/cdn.d.ts"],
 });
+
+export type InventoryDeskModule = Implementation<
+  typeof inventoryDesk,
+  [typeof desk]
+>;
 
 export const inventoryDeskRelations = [
   implementsRequirement(inventoryDesk, inventory),

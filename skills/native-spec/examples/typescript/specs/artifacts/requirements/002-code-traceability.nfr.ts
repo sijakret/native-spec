@@ -5,7 +5,7 @@ export const codeTraceability = artifact.nonFunctionalRequirement({
   title: "Enumerable and Architecture-Linked App Code",
   tags: ["traceability"],
   description:
-    "Audit production source directly, link code to architecture blocks, and resolve requirements through their implementation relations, without a separate link ledger.",
+    "Link production modules and callables to architecture blocks through erased TypeScript symbol references, audit complete ownership, and derive requirements through their implementation relations without a link ledger or custom editor validator.",
   acceptanceCriteria: [
     {
       id: "enumerate-code",
@@ -15,17 +15,17 @@ export const codeTraceability = artifact.nonFunctionalRequirement({
     {
       id: "requirement-links",
       description:
-        "Every module has a header @specModule annotation; every named callable has its own @spec annotation naming at least one actual ABB. Derive requirement coverage through implements relations, allowing optional direct requirement links but not as a substitute for ABB ownership.",
+        "Every TypeScript module and named callable has an Implementation type link to at least one registered ABB. Use imported symbols beside the ABB and source-local type aliases for non-exported helpers. Supporting CSS and ambient declaration files use ABB file entries. Derive requirement coverage through implements relations.",
     },
     {
       id: "callback-inheritance",
       description:
-        "Inline callbacks inherit the nearest enclosing callable's ABB ownership, derived requirements, and optional direct requirement links, or the module's for top-level initializers.",
+        "Inline callbacks inherit the nearest enclosing callable's ABB ownership and derived requirements, or the module's for top-level initializers.",
     },
     {
       id: "reject-invalid-links",
       description:
-        "Invalid annotations, missing ABB ownership, dangling implementation relations, and ABB file-list mismatches fail the audit, as do duplicate code targets, unsupported file languages, and unsupported dynamic callable names.",
+        "The native TypeScript compiler and editor reject missing imported modules, exports, and methods. The build-time audit rejects unresolved targets, missing ABB ownership, dangling implementation relations, missing supporting files, duplicate targets, unsupported file languages, and unsupported dynamic callable names.",
     },
     {
       id: "app-boundary",
@@ -35,7 +35,7 @@ export const codeTraceability = artifact.nonFunctionalRequirement({
     {
       id: "code-inventory",
       description:
-        "Expose an in-memory inventory with ABB IDs, derived requirements, separate optional direct requirement links, source positions, and inheritance provenance; offer optional JSON on stdout without generated intermediate files, and do not claim behavioral correctness from linkage.",
+        "Expose an in-memory inventory with ABB IDs, derived requirements, source positions, and inheritance provenance; offer optional JSON on stdout without generated intermediate files, and do not claim behavioral correctness from linkage.",
     },
   ],
 });
