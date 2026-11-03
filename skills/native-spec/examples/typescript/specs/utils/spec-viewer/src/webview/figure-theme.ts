@@ -36,7 +36,14 @@ export function themedFigure(source: string, title: string): SVGSVGElement {
 
   svg.setAttribute("role", "img");
   svg.setAttribute("aria-label", title);
-  return document.importNode(svg, true) as unknown as SVGSVGElement;
+  const figure = document.importNode(svg, true) as unknown as SVGSVGElement;
+  const { width, height } = figure.viewBox.baseVal;
+  if (width > 0 && height > 0) {
+    figure.setAttribute("width", String(width));
+    figure.setAttribute("height", String(height));
+    figure.style.setProperty("--figure-native-width", `${width}px`);
+  }
+  return figure;
 }
 
 // Arrow labels are cut out of their arrow by a mask sized when the figure was saved, which can be
