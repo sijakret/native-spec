@@ -23,6 +23,22 @@ export interface CodeEntry extends CodeTrace {
   readonly inheritedFrom?: string;
 }
 
+export interface TestEntry extends Pick<
+  CodeEntry,
+  "file" | "symbol" | "line" | "column" | "endLine"
+> {
+  readonly kind: "test" | "suite";
+  readonly verifications: readonly {
+    readonly requirement: string;
+    readonly criterion: string;
+  }[];
+}
+
+export interface TraceLinks {
+  readonly code: readonly CodeEntry[];
+  readonly tests: readonly TestEntry[];
+}
+
 export function readAppSources(root: string): ReadonlyMap<string, string> {
   const files = new Map<string, string>();
   const visit = (directory: string): void => {
@@ -45,6 +61,7 @@ export function auditSources(
   project: SpecProject,
   linkSources: ReadonlyMap<string, string>,
   root = resolve(import.meta.dirname, "../.."),
+  auditOptions: { readonly includeExternalTargets?: boolean } = {},
 ) {
   const errors: string[] = [];
   const sources = new Map(
@@ -110,7 +127,19 @@ export function auditSources(
     requirements.set(block.id, [...new Set(implemented)]);
   }
 
-  for (const [file] of files) {
+  const inventoryFiles = new Map(files);
+  if (auditOptions.includeExternalTargets) {
+    for (const source of program.getSourceFiles()) {
+      const file = pathOf(source);
+      if (
+        !source.isDeclarationFile &&
+        !file.startsWith("../") &&
+        !file.split("/").includes("node_modules")
+      )
+        inventoryFiles.set(file, source.text);
+    }
+  }
+  for (const [file] of inventoryFiles) {
     const ast = program.getSourceFile(resolve(root, file));
     if (!ast && !file.endsWith(".css")) {
       errors.push(`Unsupported app source file: ${file}`);
@@ -364,9 +393,312 @@ export function auditSources(
             .fileName.replaceAll("\\", "/")
             .endsWith("/definition/process.ts"),
       ) ?? false;
+  const registeredTests = new Map<
+    ts.Node,
+    {
+      readonly location: Omit<TestEntry, "verifications">;
+      readonly verifications: { requirement: string; criterion: string }[];
+      readonly calls: {
+        readonly node: ts.CallExpression;
+        readonly enabled: boolean;
+      }[];
+    }
+  >();
+  const isTestRegistration = (
+    expression: ts.Expression,
+    names = ["it", "test"],
+    includeSkipped = false,
+  ): boolean => {
+    if (ts.isCallExpression(expression))
+      return isTestRegistration(expression.expression, names, includeSkipped);
+    if (ts.isPropertyAccessExpression(expression)) {
+      if (
+        ["each", "for", "only", "concurrent", "sequential", "fails"].includes(
+          expression.name.text,
+        ) ||
+        (includeSkipped &&
+          ["skip", "todo", "skipIf", "runIf"].includes(expression.name.text))
+      )
+        return isTestRegistration(expression.expression, names, includeSkipped);
+      if (!names.includes(expression.name.text)) return false;
+      return (
+        checker
+          .getSymbolAtLocation(expression.expression)
+          ?.getDeclarations()
+          ?.some(
+            (declaration) =>
+              ts.isNamespaceImport(declaration) &&
+              !declaration.parent.isTypeOnly &&
+              ts.isImportDeclaration(declaration.parent.parent) &&
+              ts.isStringLiteral(declaration.parent.parent.moduleSpecifier) &&
+              declaration.parent.parent.moduleSpecifier.text === "vitest",
+          ) ?? false
+      );
+    }
+    return (
+      checker
+        .getSymbolAtLocation(expression)
+        ?.getDeclarations()
+        ?.some(
+          (declaration) =>
+            ts.isImportSpecifier(declaration) &&
+            !declaration.isTypeOnly &&
+            !declaration.parent.parent.isTypeOnly &&
+            names.includes(
+              (declaration.propertyName ?? declaration.name).text,
+            ) &&
+            ts.isImportDeclaration(declaration.parent.parent.parent) &&
+            ts.isStringLiteral(
+              declaration.parent.parent.parent.moduleSpecifier,
+            ) &&
+            declaration.parent.parent.parent.moduleSpecifier.text === "vitest",
+        ) ?? false
+    );
+  };
+  for (const source of program.getSourceFiles()) {
+    const file = pathOf(source);
+    if (
+      file.startsWith("../") ||
+      file.split("/").includes("node_modules") ||
+      !/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file)
+    )
+      continue;
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isCallExpression(node) &&
+        isTestRegistration(
+          node.expression,
+          ["it", "test", "describe", "suite"],
+          true,
+        )
+      ) {
+        const kind = isTestRegistration(
+          node.expression,
+          ["describe", "suite"],
+          true,
+        )
+          ? "suite"
+          : "test";
+        const call = {
+          node,
+          enabled: isTestRegistration(
+            node.expression,
+            kind === "suite" ? ["describe", "suite"] : ["it", "test"],
+          ),
+        };
+        for (const argument of node.arguments.slice(1)) {
+          for (const signature of checker
+            .getTypeAtLocation(argument)
+            .getCallSignatures()) {
+            const declaration = signature.getDeclaration();
+            if (
+              !declaration ||
+              !(
+                ts.isFunctionDeclaration(declaration) ||
+                ts.isFunctionExpression(declaration) ||
+                ts.isArrowFunction(declaration) ||
+                ts.isMethodDeclaration(declaration)
+              ) ||
+              !declaration.body
+            )
+              continue;
+            const existing = registeredTests.get(declaration);
+            if (existing) {
+              existing.calls.push(call);
+              continue;
+            }
+            const ast = declaration.getSourceFile();
+            const start = ast.getLineAndCharacterOfPosition(
+              declaration.getStart(ast),
+            );
+            const end = ast.getLineAndCharacterOfPosition(declaration.getEnd());
+            const name =
+              declaration.name?.getText(ast) ??
+              (ts.isVariableDeclaration(declaration.parent)
+                ? declaration.parent.name.getText(ast)
+                : `<test@${start.line + 1}:${start.character + 1}>`);
+            registeredTests.set(declaration, {
+              location: {
+                kind,
+                file: pathOf(ast),
+                symbol: name,
+                line: start.line + 1,
+                column: start.character + 1,
+                endLine: end.line + 1,
+              },
+              verifications: [],
+              calls: [call],
+            });
+          }
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+  }
+  const enclosingSuites = (node: ts.Node): ts.Node[] => {
+    const suites: ts.Node[] = [];
+    for (let parent = node.parent; parent; parent = parent.parent)
+      if (registeredTests.get(parent)?.location.kind === "suite")
+        suites.push(parent);
+    return suites;
+  };
+  const enabled = new Set<ts.Node>();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [declaration, entry] of registeredTests)
+      if (
+        !enabled.has(declaration) &&
+        entry.calls.some(
+          (call) =>
+            call.enabled &&
+            enclosingSuites(call.node).every((suite) => enabled.has(suite)),
+        )
+      ) {
+        enabled.add(declaration);
+        changed = true;
+      }
+  }
+  const hasExecutableTests = (
+    declaration: ts.Node,
+    ancestors = new Set<ts.Node>(),
+  ): boolean => {
+    if (!enabled.has(declaration) || ancestors.has(declaration)) return false;
+    if (registeredTests.get(declaration)?.location.kind === "test") return true;
+    const visited = new Set([...ancestors, declaration]);
+    return [...registeredTests].some(
+      ([child, entry]) =>
+        entry.calls.some(
+          (call) =>
+            call.enabled &&
+            enclosingSuites(call.node).includes(declaration) &&
+            enclosingSuites(call.node).every((suite) => enabled.has(suite)),
+        ) && hasExecutableTests(child, visited),
+    );
+  };
+  const executable = [...registeredTests.keys()].filter((declaration) =>
+    hasExecutableTests(declaration),
+  );
+  for (const declaration of registeredTests.keys())
+    if (!executable.includes(declaration)) registeredTests.delete(declaration);
+  const linkCriterionTests = (node: ts.VariableDeclaration): void => {
+    const ownerType = checker.getTypeAtLocation(node.name);
+    const id = literalProperty(ownerType, "id", node);
+    const projectId = literalProperty(ownerType, "project", node);
+    const kind = literalProperty(ownerType, "kind", node);
+    if (!id || projectId !== project.id || !kind?.endsWith("requirement"))
+      return;
+    const criteriaProperty = ownerType.getProperty("acceptanceCriteria");
+    if (!criteriaProperty) return;
+    const criteriaType = checker.getTypeOfSymbolAtLocation(
+      criteriaProperty,
+      node,
+    );
+    const inlineCriteria = criteriaType
+      .getProperties()
+      .filter((property) => /^\d+$/.test(property.getName()))
+      .map((property) => checker.getTypeOfSymbolAtLocation(property, node));
+    const requirement = project.artifacts.find(
+      (artifact) =>
+        artifact.project === project.id &&
+        artifact.id === id &&
+        "acceptanceCriteria" in artifact,
+    );
+    if (!requirement || !("acceptanceCriteria" in requirement)) {
+      errors.push(`Unknown verification owner: ${id}`);
+      return;
+    }
+    const criteria = new Set(
+      requirement.acceptanceCriteria.map((criterion) => criterion.id),
+    );
+    const linkedCriteria = new Set<string>();
+    for (const criterionType of inlineCriteria) {
+      const criterion = literalProperty(criterionType, "id", node);
+      if (!criterion || !criteria.has(criterion)) {
+        errors.push(`Unknown verification criterion: ${id}:${criterion}`);
+        continue;
+      }
+      const references = criterionType.getProperty("tests");
+      if (!references) continue;
+      linkedCriteria.add(criterion);
+      const referenceType = checker.getTypeOfSymbolAtLocation(references, node);
+      const canonical = referenceType.aliasSymbol
+        ?.getDeclarations()
+        ?.some(
+          (declaration) =>
+            ts.isTypeAliasDeclaration(declaration) &&
+            declaration.name.text === "TestReferences" &&
+            declaration
+              .getSourceFile()
+              .fileName.replaceAll("\\", "/")
+              .endsWith("/definition/process.ts"),
+        );
+      if (!canonical) {
+        errors.push(
+          `Criterion test links must use testedBy: ${id}:${criterion}`,
+        );
+        continue;
+      }
+      const tuple = referenceType.aliasTypeArguments?.[0];
+      const targetTypes =
+        tuple && checker.isTupleType(tuple)
+          ? checker.getTypeArguments(tuple as ts.TypeReference)
+          : [];
+      if (targetTypes.length === 0) {
+        errors.push(
+          `Verification requires a nonempty test tuple: ${id}:${criterion}`,
+        );
+        continue;
+      }
+      const seen = new Set<ts.Node>();
+      for (const target of targetTypes) {
+        const declarations = [
+          ...new Set(
+            target.getCallSignatures().flatMap((signature) => {
+              const declaration = signature.getDeclaration();
+              return declaration && registeredTests.has(declaration)
+                ? [declaration]
+                : [];
+            }),
+          ),
+        ];
+        if (!declarations.length)
+          errors.push(
+            `Verification target is not a registered Vitest test or nonempty suite: ${id}:${criterion}`,
+          );
+        for (const declaration of declarations) {
+          if (seen.has(declaration)) {
+            errors.push(`Duplicate verification target: ${id}:${criterion}`);
+            continue;
+          }
+          seen.add(declaration);
+          const entry = registeredTests.get(declaration)!;
+          if (
+            !entry.verifications.some(
+              (verification) =>
+                verification.requirement === id &&
+                verification.criterion === criterion,
+            )
+          )
+            entry.verifications.push({
+              requirement: requirement.id,
+              criterion,
+            });
+        }
+      }
+    }
+    for (const criterion of criteria) {
+      if (!linkedCriteria.has(criterion))
+        errors.push(
+          `Missing acceptance criterion test link: ${id}:${criterion}`,
+        );
+    }
+  };
   for (const file of sources.keys()) {
     const ast = program.getSourceFile(file)!;
     const visit = (node: ts.Node): void => {
+      if (ts.isVariableDeclaration(node)) linkCriterionTests(node);
       if (
         ts.isTypeReferenceNode(node) ||
         ts.isExpressionWithTypeArguments(node)
@@ -414,22 +746,22 @@ export function auditSources(
               ts.isHeritageClause(node.parent) &&
               ts.isInterfaceDeclaration(node.parent.parent)
             ) {
-              const bindings = node.parent.parent.members.find(
+              const specBindings = node.parent.parent.members.find(
                 (member): member is ts.PropertySignature =>
                   ts.isPropertySignature(member) &&
                   ts.isIdentifier(member.name) &&
-                  member.name.text === "bindings",
+                  member.name.text === "specBindings",
               )?.type;
-              if (bindings) {
+              if (specBindings) {
                 if (
-                  ts.isTypeReferenceNode(bindings) &&
-                  isProcessType(bindings.typeName, "Bindings") &&
-                  bindings.typeArguments?.length === 2
+                  ts.isTypeReferenceNode(specBindings) &&
+                  isProcessType(specBindings.typeName, "Bindings") &&
+                  specBindings.typeArguments?.length === 2
                 ) {
-                  targetNodes.push(bindings.typeArguments[1]!);
+                  targetNodes.push(specBindings.typeArguments[1]!);
                 } else {
                   errors.push(
-                    `Interface bindings must use Bindings<Contract, Source>: ${pathOf(ast)}`,
+                    `Interface specBindings must use Bindings<Contract, Source>: ${pathOf(ast)}`,
                   );
                 }
               }
@@ -486,5 +818,50 @@ export function auditSources(
     };
   });
   if (!files.size) errors.push("No app source files found.");
-  return { inventory, errors };
+  const tests: TestEntry[] = [...registeredTests.values()]
+    .filter((entry) => entry.verifications.length > 0)
+    .map((entry) => ({
+      ...entry.location,
+      verifications: entry.verifications,
+    }));
+  return { inventory, tests, errors };
+}
+
+export function readTraceLinks(
+  specs: string,
+  project: SpecProject,
+  overrides: ReadonlyMap<string, string> = new Map(),
+): TraceLinks {
+  const root = resolve(specs, "..");
+  const artifacts = join(specs, "artifacts");
+  const sources = new Map(
+    readdirSync(artifacts, { recursive: true, encoding: "utf8" })
+      .filter((file) => file.endsWith(".ts"))
+      .map(
+        (file) =>
+          [
+            relative(root, join(artifacts, file)).replaceAll("\\", "/"),
+            readFileSync(join(artifacts, file), "utf8"),
+          ] as const,
+      ),
+  );
+  for (const [file, text] of overrides)
+    sources.set(relative(root, file).replaceAll("\\", "/"), text);
+  const result = auditSources(readAppSources(root), project, sources, root, {
+    includeExternalTargets: true,
+  });
+  return {
+    code: result.inventory.filter(
+      (entry) => entry.architectureBlocks.length > 0,
+    ),
+    tests: result.tests,
+  };
+}
+
+export function readCodeLinks(
+  specs: string,
+  project: SpecProject,
+  overrides: ReadonlyMap<string, string> = new Map(),
+): readonly CodeEntry[] {
+  return readTraceLinks(specs, project, overrides).code;
 }

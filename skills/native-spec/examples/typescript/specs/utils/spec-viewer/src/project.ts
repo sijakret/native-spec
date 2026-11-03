@@ -30,3 +30,29 @@ export function findSpecsDirectory(
     `No spec project found for ${documentPath}: expected an ancestor containing ${marker} or ${join(configured, marker)}. Check the nativeSpec.specsFolder setting.`,
   );
 }
+
+export function codeSourceLocation(
+  specs: string,
+  file: string,
+  line = 1,
+  column = 1,
+): { readonly file: string; readonly line: number; readonly column: number } {
+  const root = resolve(specs, "..");
+  const target = resolve(root, file);
+  const local = relative(root, target);
+  if (
+    !local ||
+    isAbsolute(file) ||
+    local === ".." ||
+    local.startsWith(`..${sep}`)
+  )
+    throw new Error("Code links must stay inside the spec project.");
+  if (
+    !Number.isSafeInteger(line) ||
+    line < 1 ||
+    !Number.isSafeInteger(column) ||
+    column < 1
+  )
+    throw new Error("Code links require positive line and column numbers.");
+  return { file: target, line: line - 1, column: column - 1 };
+}

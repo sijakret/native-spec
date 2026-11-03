@@ -576,6 +576,88 @@ p {
   margin-top: 24px;
 }
 
+.spec-code-links {
+  margin-top: 24px;
+}
+
+.code-link-file > summary {
+  padding: 6px 10px;
+  color: var(--spec-muted);
+  cursor: pointer;
+}
+
+.code-link-file-heading {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: calc(100% - 20px);
+  vertical-align: middle;
+}
+
+.code-link-file-heading code {
+  min-width: 0;
+  font-size: 12px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.code-link-file-heading .count-badge {
+  flex-shrink: 0;
+  border: 0;
+  background: none;
+}
+
+.code-link-file > .spec-list {
+  border-top: 1px solid var(--spec-border);
+  padding-left: 16px;
+}
+
+.code-link {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: baseline;
+  gap: 8px 20px;
+  width: 100%;
+  min-height: 30px;
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--vscode-textLink-foreground, LinkText);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.code-link-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.code-link-name code {
+  font-size: 12px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.code-link-name .spec-icon {
+  flex-shrink: 0;
+}
+
+.code-link-location {
+  color: var(--spec-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.code-link:disabled {
+  cursor: default;
+}
+
 .spec-list-box {
   container-type: inline-size;
   min-width: 0;
@@ -624,6 +706,8 @@ p {
 }
 
 .spec-list {
+  width: 100%;
+  max-width: none;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -670,7 +754,7 @@ p {
   text-decoration: underline;
 }
 
-.spec-list :is(.relation-peer, .criterion-tests) .spec-icon {
+.spec-list .relation-peer .spec-icon {
   width: 12px;
   height: 12px;
 }
@@ -679,26 +763,12 @@ p {
   padding-top: 4px;
 }
 
-/* One shared ID column keeps every row's tested-by links aligned. */
-.spec-criteria .spec-list {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  column-gap: 16px;
-}
-
-.spec-criteria .spec-list > li,
-.spec-list > .criterion-item > .criterion-meta {
-  display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: subgrid;
-}
-
-.spec-list > .criterion-item > .spec-list-content {
-  grid-column: 1 / -1;
+.spec-list > .criterion-item > .spec-list-content > :not(.spec-icon) {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .spec-list > .criterion-item > .criterion-meta {
-  align-items: center;
   padding: 0 10px 4px;
 }
 
@@ -707,16 +777,73 @@ p {
 }
 
 .criterion-tests {
-  grid-column: 2;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 0;
+  padding: 2px 10px 8px;
+  list-style: none;
+  font-size: 11px;
+  line-height: 18px;
 }
 
-.criterion-tests .artifact-link {
+.criterion-tests > li {
+  display: contents;
+}
+
+.criterion-test-file {
+  color: var(--spec-muted);
+  overflow-wrap: anywhere;
+}
+
+.criterion-test-names {
+  display: flex;
+  flex-wrap: wrap;
   gap: 4px;
-  vertical-align: middle;
+  min-width: 0;
+}
+
+.test-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  max-width: 100%;
+  padding: 0 6px;
+  border: 1px solid var(--spec-border);
+  border-radius: var(--vscode-cornerRadius-small, 3px);
+  background: transparent;
+  color: var(--vscode-textLink-foreground, LinkText);
+  font: inherit;
+  cursor: pointer;
+}
+
+.test-chip code {
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.test-chip:hover:not(:disabled) {
+  border-color: var(--spec-focus);
+}
+
+.test-chip:disabled {
+  cursor: default;
+}
+
+.test-kind {
+  color: var(--spec-muted);
+  font-size: 10px;
+}
+
+@container (max-width: 380px) {
+  .criterion-tests {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 2px;
+  }
+
+  .criterion-test-names {
+    margin-bottom: 4px;
+  }
 }
 
 .spec-list-content {

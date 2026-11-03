@@ -5,6 +5,7 @@ import {
   type ArtifactKind,
   type Relation,
 } from "../../definition/process.js";
+import type { TestEntry } from "../../audit/code-audit.js";
 
 export const sections: readonly {
   readonly kind: ArtifactKind;
@@ -69,23 +70,16 @@ export function artifactAnchors(artifact: Artifact): readonly string[] {
 }
 
 export function criterionTests(
-  graph: ReturnType<typeof buildGraph>,
+  inventory: readonly TestEntry[] | undefined,
   artifact: Artifact,
   criterion: string,
-): readonly Artifact[] {
-  return (graph.incoming.get(artifactKey(artifact)) ?? []).flatMap(
-    (relation) => {
-      if (
-        relation.kind !== "verifies" ||
-        relation.to.kind === "risk" ||
-        relation.to.criterion !== criterion
-      )
-        return [];
-      const test = graph.artifacts.get(artifactKey(relation.from));
-      if (!test)
-        throw new Error(`Cannot render missing test case: ${relation.from.id}`);
-      return [test];
-    },
+): readonly TestEntry[] {
+  return (inventory ?? []).filter((entry) =>
+    entry.verifications.some(
+      (verification) =>
+        verification.requirement === artifact.id &&
+        verification.criterion === criterion,
+    ),
   );
 }
 

@@ -22,10 +22,13 @@ import {
 } from "./rendering.js";
 import { boundFields } from "./views.js";
 import { specIcon } from "./icons.js";
+import type { CodeEntry, TestEntry } from "../../audit/code-audit.js";
 
 export interface HtmlRenderOptions {
   readonly language?: string;
   readonly stylesheets?: readonly string[];
+  readonly codeInventory?: readonly CodeEntry[];
+  readonly testInventory?: readonly TestEntry[];
   // Maps an Excalidraw sidecar URL to the image href written into the document.
   readonly figureHref?: FigureHref;
 }
@@ -97,7 +100,14 @@ export function renderHtml(
       `        <h2>${escapeHtml(section.title)}</h2>`,
     );
     for (const artifact of section.artifacts) {
-      renderArtifactArticle(lines, graph, artifact, 8);
+      renderArtifactArticle(
+        lines,
+        graph,
+        artifact,
+        8,
+        options.codeInventory,
+        options.testInventory,
+      );
     }
     lines.push("      </section>");
   }
@@ -113,6 +123,8 @@ export function renderArtifactFragment(
   graph: SpecGraph,
   artifacts: readonly Artifact[],
   project?: SpecProject,
+  codeInventory?: readonly CodeEntry[],
+  testInventory?: readonly TestEntry[],
 ): string {
   const lines: string[] = [];
   if (project) renderProjectOverview(lines, project);
@@ -129,7 +141,14 @@ export function renderArtifactFragment(
     lines.push("  </ul>", "</nav>");
   }
   for (const artifact of artifacts) {
-    renderArtifactArticle(lines, graph, artifact, 0);
+    renderArtifactArticle(
+      lines,
+      graph,
+      artifact,
+      0,
+      codeInventory,
+      testInventory,
+    );
   }
   return `${lines.join("\n")}\n`;
 }
@@ -139,6 +158,8 @@ export function renderSpecPanel(
   project: SpecProject,
   artifacts?: readonly Artifact[],
   page: "overview" | "architecture" = "overview",
+  codeInventory?: readonly CodeEntry[],
+  testInventory?: readonly TestEntry[],
 ): string {
   const current = artifacts?.length === 1 ? artifacts[0] : undefined;
   const overview = artifacts === undefined;
@@ -204,7 +225,14 @@ export function renderSpecPanel(
     lines.push("  </div>", "</section>");
   } else {
     for (const artifact of artifacts)
-      renderArtifactArticle(lines, graph, artifact, 0);
+      renderArtifactArticle(
+        lines,
+        graph,
+        artifact,
+        0,
+        codeInventory,
+        testInventory,
+      );
   }
   lines.push("    </div>", "  </main>", "</div>");
   return `${lines.join("\n")}\n`;
@@ -339,13 +367,37 @@ function renderArtifactArticle(
   graph: SpecGraph,
   artifact: Artifact,
   indentation: number,
+  codeInventory?: readonly CodeEntry[],
+  testInventory?: readonly TestEntry[],
 ): void {
   const spaces = " ".repeat(indentation);
   lines.push(
     `${spaces}<article id="${artifactAnchor(artifact)}">`,
     `${spaces}  <h3 class="artifact-heading">${specIcon(artifact.kind)}<span class="artifact-heading-text"><span data-source-path="id">${escapeHtml(artifact.id)}</span> - <span data-path="title">${escapeHtml(artifact.title)}</span></span></h3>`,
   );
-  renderArtifact(lines, artifact, indentation + 2, graph);
+  renderArtifact(lines, artifact, indentation + 2, testInventory);
+
+  if (artifact.kind === "architecture-block" && codeInventory) {
+    const entries = codeInventory.filter(
+      (entry) =>
+        entry.kind !== "callback" &&
+        entry.architectureBlocks.includes(artifact.id),
+    );
+    renderListBox(
+      lines,
+      {
+        heading: `${artifactAnchor(artifact)}-code-links`,
+        title: "Code Links",
+        className: "spec-code-links",
+        headingLevel: 4,
+        count: entries.length,
+        rows: sourceFileRows(entries, (entry) =>
+          entry.kind === "module" ? "Module" : entry.symbol,
+        ),
+      },
+      indentation + 2,
+    );
+  }
 
   const key = artifactKey(artifact);
   const relationGroups = groupRelations(
@@ -391,6 +443,52 @@ function renderArtifactArticle(
   lines.push(`${spaces}</article>`);
 }
 
+function groupByFile<Entry extends Pick<CodeEntry, "file">>(
+  entries: readonly Entry[],
+): Map<string, Entry[]> {
+  const files = new Map<string, Entry[]>();
+  for (const entry of entries) {
+    const group = files.get(entry.file) ?? [];
+    group.push(entry);
+    files.set(entry.file, group);
+  }
+  return files;
+}
+
+function criterionTestList(
+  criterion: string,
+  tests: readonly TestEntry[],
+): string {
+  if (!tests.length) return "";
+  const rows = [...groupByFile(tests)].map(
+    ([file, entries]) =>
+      `<li><span class="criterion-test-file">${escapeHtml(file)}</span><span class="criterion-test-names">${entries
+        .map(
+          (test) =>
+            `<button type="button" class="test-chip" data-code-file="${escapeAttribute(test.file)}" data-code-line="${test.line}" data-code-column="${test.column}" title="${escapeAttribute(`Open ${test.kind} ${test.symbol} at ${test.file}:${test.line}`)}"><code>${escapeHtml(test.symbol)}</code>${test.kind === "suite" ? '<span class="test-kind">suite</span>' : ""}</button>`,
+        )
+        .join("")}</span></li>`,
+  );
+  return `<ul class="criterion-tests" aria-label="Tests for ${escapeAttribute(criterion)}">${rows.join("")}</ul>`;
+}
+
+function sourceFileRows<
+  Entry extends Pick<CodeEntry, "file" | "symbol" | "line" | "column">,
+>(entries: readonly Entry[], label: (entry: Entry) => string): string[] {
+  return [...groupByFile(entries)].map(
+    ([file, declarations]) =>
+      `<li><details class="code-link-file"><summary><span class="code-link-file-heading"><code>${escapeHtml(file)}</code><span class="count-badge">${declarations.length}</span></span></summary><ul class="spec-list">${declarations.map((entry) => sourceLinkRow(entry, label(entry))).join("")}</ul></details></li>`,
+  );
+}
+
+function sourceLinkRow(
+  entry: Pick<CodeEntry, "file" | "symbol" | "line" | "column">,
+  name: string,
+): string {
+  const location = `${entry.file}:${entry.line}`;
+  return `<li><button type="button" class="code-link" data-code-file="${escapeAttribute(entry.file)}" data-code-line="${entry.line}" data-code-column="${entry.column}" title="${escapeAttribute(`Open ${name} at ${location}`)}"><span class="code-link-name">${specIcon("source")}<code>${escapeHtml(name)}</code></span><span class="code-link-location">Line ${entry.line}</span></button></li>`;
+}
+
 function renderListBox(
   lines: string[],
   options: {
@@ -398,6 +496,7 @@ function renderListBox(
     readonly title: string;
     readonly className: string;
     readonly rows: readonly string[];
+    readonly count?: number;
     readonly headingLevel?: 4 | 5;
     readonly contextLabel?: string;
   },
@@ -407,7 +506,7 @@ function renderListBox(
   const tag = `h${options.headingLevel ?? 5}`;
   lines.push(
     `${spaces}<section class="spec-list-box ${options.className}"${options.contextLabel ? " data-peer-context" : ""} aria-labelledby="${options.heading}">`,
-    `${spaces}  <header class="spec-list-header"><div class="spec-list-heading"><${tag} id="${options.heading}">${escapeHtml(options.title)}</${tag}><span class="count-badge">${options.rows.length}</span></div>${options.contextLabel ? `<span class="relation-context-heading" aria-hidden="true">${escapeHtml(options.contextLabel)}</span>` : ""}</header>`,
+    `${spaces}  <header class="spec-list-header"><div class="spec-list-heading"><${tag} id="${options.heading}">${escapeHtml(options.title)}</${tag}><span class="count-badge">${options.count ?? options.rows.length}</span></div>${options.contextLabel ? `<span class="relation-context-heading" aria-hidden="true">${escapeHtml(options.contextLabel)}</span>` : ""}</header>`,
     `${spaces}  <ul class="spec-list">`,
     ...options.rows.map((row) => `${spaces}    ${row}`),
     `${spaces}  </ul>`,
@@ -447,7 +546,7 @@ function renderArtifact(
   lines: string[],
   artifact: Artifact,
   indentation: number,
-  graph: SpecGraph,
+  testInventory?: readonly TestEntry[],
 ): void {
   const spaces = " ".repeat(indentation);
   for (const bound of boundFields(artifact)) {
@@ -486,8 +585,12 @@ function renderArtifact(
             className: "spec-criteria",
             headingLevel: 4,
             rows: bound.value.map((criterion, index) => {
-              const tests = criterionTests(graph, artifact, criterion.id);
-              return `<li class="criterion-item" id="${escapeAttribute(criterionAnchor(artifact, criterion.id))}"><div class="spec-list-content" title="${escapeAttribute(plainText(criterion.description))}"><span ${textBinding(`${bound.key}.${index}.description`, criterion.description)}>${richText(criterion.description)}</span></div><p class="criterion-meta"><span class="spec-list-id" data-source-path="${bound.key}.${index}.id">${escapeHtml(criterion.id)}</span>${tests.length ? `<span class="criterion-tests">Tested by ${tests.map((test) => artifactLink(test)).join(", ")}</span>` : ""}</p></li>`;
+              const tests = criterionTests(
+                testInventory,
+                artifact,
+                criterion.id,
+              );
+              return `<li class="criterion-item" id="${escapeAttribute(criterionAnchor(artifact, criterion.id))}"><div class="spec-list-content" title="${escapeAttribute(plainText(criterion.description))}"><span ${textBinding(`${bound.key}.${index}.description`, criterion.description)}>${richText(criterion.description)}</span></div><p class="criterion-meta"><span class="spec-list-id" data-source-path="${bound.key}.${index}.id">${escapeHtml(criterion.id)}</span></p>${criterionTestList(criterion.id, tests)}</li>`;
             }),
           },
           indentation,

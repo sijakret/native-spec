@@ -5,13 +5,20 @@ import {
   delivers,
   derivesFrom,
   implementsRequirement,
+  testedBy,
   verifies,
   type Bindings,
+  type Callable,
   type CodeBlock,
+  type Constructable,
   type Implementation,
+  type TestReferences,
 } from "../definition/process.js";
 import type * as storage from "../../src/storage.js";
 import type * as domain from "../../src/domain.js";
+import type * as domainTests from "../../tests/domain.test.js";
+// @ts-expect-error type-only test bindings do not export private callbacks
+import type { seededInventory as PrivateTest } from "../../tests/domain.test.js";
 // @ts-expect-error module paths are checked by the native compiler
 import type * as MissingSource from "../../src/missing-native-link.js";
 // @ts-expect-error exporting a binding type does not export its private functions
@@ -42,10 +49,10 @@ export type InvalidPrivateBinding = Bindings<
 >;
 
 // @ts-expect-error ABB references must name an existing private binding
-export type MissingPrivateSlot = domain.local["missing"];
+export type MissingPrivateSlot = domain.specBindings["missing"];
 
 // @ts-expect-error ABB binding references require an actual exported binding type
-export type MissingBindingExport = domain.missingLocal;
+export type MissingBindingExport = domain.missingBindings;
 
 export type MissingBindingSymbol = Bindings<
   PrivateSlots,
@@ -57,6 +64,41 @@ export type WrongBindingSignature = Bindings<
   PrivateSlots,
   // @ts-expect-error bindings must satisfy signatures declared in the contract
   { save: () => number }
+>;
+
+export type UnifiedSymbolBindings = Bindings<
+  { seed: Callable; record: Callable; store: Constructable },
+  {
+    seed: domain.specBindings["seedWorkspace"];
+    record: domain.specBindings["record"];
+    store: storage.specBindings["WorkspaceStore"];
+  }
+>;
+
+export type PreservedBindingSignatures = Bindings<
+  {
+    seedWorkspace: () => domain.Workspace;
+    record: (value: unknown) => Record<string, unknown>;
+  },
+  Pick<domain.specBindings, "seedWorkspace" | "record">
+>;
+
+export type NonCallableBinding = Bindings<
+  { run: Callable },
+  // @ts-expect-error a callable slot rejects arbitrary objects
+  { run: object }
+>;
+
+export type NonCallableConstructor = Bindings<
+  { run: Callable },
+  // @ts-expect-error a class constructor is not a callable function
+  { run: typeof storage.WorkspaceStore }
+>;
+
+export type NonConstructableBinding = Bindings<
+  { store: Constructable },
+  // @ts-expect-error an ordinary function is not a class constructor
+  { store: typeof storage.importWorkspace }
 >;
 
 // @ts-expect-error every diagram requires an explicit title
@@ -71,7 +113,13 @@ const market = artifact.marketRequirement({
   title: "Market",
   tags: ["test"],
   description: "Market need",
-  acceptanceCriteria: [{ id: "accepted", description: "Accepted" }],
+  acceptanceCriteria: [
+    {
+      id: "accepted",
+      description: "Accepted",
+      tests: testedBy<[domainTests.specBindings["seededInventory"]]>(),
+    },
+  ],
 });
 const software = artifact.softwareRequirement({
   id: "REQ-SR-001",
@@ -79,7 +127,56 @@ const software = artifact.softwareRequirement({
   tags: ["test"],
   description: "Software behavior",
   acceptanceCriteria: [
-    { id: "accepted", description: "Accepted" },
+    {
+      id: "accepted",
+      description: "Accepted",
+      tests: testedBy<[domainTests.specBindings["seededInventory"]]>(),
+    },
+    {
+      id: "invalid-input",
+      description: "Invalid input is rejected",
+      tests: testedBy<[domainTests.specBindings["invalidQuantities"]]>(),
+    },
+  ],
+});
+export type NativeCriterionTests = TestReferences<
+  [
+    domainTests.specBindings["seededInventory"],
+    domainTests.specBindings["invalidQuantities"],
+  ]
+>;
+// @ts-expect-error native test links must reference an existing callback binding
+export type MissingTestCallback = domainTests.specBindings["missing"];
+// @ts-expect-error a criterion cannot have an empty test list
+testedBy<[]>();
+// @ts-expect-error test targets are native callable types, not paths or names
+testedBy<["tests/domain.test.ts"]>();
+// @ts-expect-error constructors are not test callbacks
+testedBy<[typeof storage.WorkspaceStore]>();
+// @ts-expect-error test references cannot be replaced with an empty object
+const counterfeitTests: TestReferences = {};
+// @ts-expect-error an explicit nonempty tuple of test targets is required
+testedBy();
+artifact.marketRequirement({
+  ...market,
+  // @ts-expect-error wholly unlinked requirements are invalid, not just mixed lists
+  acceptanceCriteria: [{ id: "accepted", description: "Unlinked" }],
+});
+artifact.nonFunctionalRequirement({
+  ...market,
+  id: "REQ-NFR-001",
+  // @ts-expect-error nonfunctional criteria also intrinsically require tests
+  acceptanceCriteria: [{ id: "accepted", description: "Unlinked" }],
+});
+artifact.softwareRequirement({
+  ...software,
+  // @ts-expect-error every individual criterion intrinsically requires tests
+  acceptanceCriteria: [
+    {
+      id: "accepted",
+      description: "Accepted",
+      tests: testedBy<[() => void]>(),
+    },
     { id: "invalid-input", description: "Invalid input is rejected" },
   ],
 });
@@ -111,7 +208,7 @@ export interface NativePrivateLinks extends Implementation<
   [typeof storage]
 > {
   readonly contract: { save: typeof storage.exportWorkspace };
-  readonly bindings: Bindings<
+  readonly specBindings: Bindings<
     NativePrivateLinks["contract"],
     NativePrivateBindings
   >;
@@ -127,7 +224,7 @@ export interface RejectsUncheckedBindings extends Implementation<
   [typeof storage]
 > {
   readonly contract: NativePrivateLinks["contract"];
-  readonly bindings: Bindings<
+  readonly specBindings: Bindings<
     RejectsUncheckedBindings["contract"],
     // @ts-expect-error the ABB also rejects extra slots without a source helper
     UncheckedBindings
@@ -223,15 +320,27 @@ verifies(test, software, "unknown");
 // @ts-expect-error another requirement's criterion is not available here
 verifies(test, market, "invalid-input");
 
-// @ts-expect-error covering one criterion does not cover the whole requirement
 defineProject({
   id: "type-test",
-  title: "Partial Verification",
+  title: "Inline verification needs no duplicate criterion relations",
   artifacts: [market, software, architecture, test, sprint],
   relations: [
     ...relations.filter((relation) => relation.kind !== "verifies"),
     verifies(test, market, "accepted"),
     verifies(test, software, "accepted"),
+  ],
+});
+
+defineProject({
+  id: "type-test",
+  title: "Native test references without test-case artifacts",
+  artifacts: [market, software, architecture, sprint],
+  relations: [
+    derivesFrom(software, market),
+    implementsRequirement(architecture, software),
+    delivers(sprint, market),
+    delivers(sprint, software),
+    delivers(sprint, architecture),
   ],
 });
 

@@ -6,6 +6,9 @@ import { fitLabelMasks, themedFigure } from "./figure-theme.js";
 export interface SourceTarget {
   readonly path?: readonly PathSegment[];
   readonly anchor?: string;
+  readonly file?: string;
+  readonly line?: number;
+  readonly column?: number;
 }
 
 type OpenSource = (target: SourceTarget) => void;
@@ -58,6 +61,20 @@ export async function mount(
     else source.title = "Source navigation is available in VS Code.";
   }
   if (openSource) addSourceActions(container, openSource);
+  for (const link of container.querySelectorAll<HTMLButtonElement>(
+    "[data-code-file]",
+  )) {
+    link.disabled = !openSource;
+    if (openSource)
+      link.addEventListener("click", () =>
+        openSource({
+          file: link.dataset.codeFile!,
+          line: Number(link.dataset.codeLine),
+          column: Number(link.dataset.codeColumn),
+        }),
+      );
+    else link.title = "Source navigation is available in VS Code.";
+  }
   resizeRelationColumns(container);
   if (!observed.has(container)) {
     observed.add(container);

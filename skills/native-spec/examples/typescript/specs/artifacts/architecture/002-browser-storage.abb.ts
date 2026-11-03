@@ -1,6 +1,9 @@
 import {
   figure,
   implementsRequirement,
+  type Bindings,
+  type Callable,
+  type Constructable,
   type Implementation,
 } from "../../definition/process.js";
 import type * as storage from "../../../src/storage.js";
@@ -32,17 +35,22 @@ export const browserStorage = artifact.architectureBlock({
   ],
 });
 
-export type BrowserStorageImplementation = Implementation<
+export interface BrowserStorageLinks extends Implementation<
   typeof browserStorage,
-  [
-    typeof storage,
-    typeof storage.importWorkspace,
-    typeof storage.exportWorkspace,
-    typeof storage.WorkspaceStore,
-    storage.WorkspaceStore["load"],
-    storage.WorkspaceStore["save"],
-  ]
->;
+  [typeof storage]
+> {
+  readonly contract: {
+    importWorkspace: Callable<typeof storage.importWorkspace>;
+    exportWorkspace: Callable<typeof storage.exportWorkspace>;
+    WorkspaceStore: Constructable<typeof storage.WorkspaceStore>;
+    load: Callable<storage.WorkspaceStore["load"]>;
+    save: Callable<storage.WorkspaceStore["save"]>;
+  };
+  readonly specBindings: Bindings<
+    BrowserStorageLinks["contract"],
+    storage.specBindings
+  >;
+}
 
 export const browserStorageRelations = [
   implementsRequirement(browserStorage, localData),

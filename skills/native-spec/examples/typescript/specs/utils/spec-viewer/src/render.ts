@@ -17,6 +17,7 @@ type Html = typeof import("../../output/html.js");
 type Rendering = typeof import("../../output/rendering.js");
 type Artifact = import("../../../definition/process.js").Artifact;
 type ArchitectureAudit = typeof import("../../../audit/architecture-audit.js");
+type CodeAudit = typeof import("../../../audit/code-audit.js");
 
 interface Request {
   readonly id: number;
@@ -43,6 +44,7 @@ const { artifactAnchors } = await load<Rendering>("utils/output/rendering.ts");
 const { validateArchitectureFigures } = await load<ArchitectureAudit>(
   "audit/architecture-audit.ts",
 );
+const { readTraceLinks } = await load<CodeAudit>("audit/code-audit.ts");
 
 const artifactsDir = join(specs, "artifacts");
 const architectureFile = join(
@@ -105,7 +107,21 @@ async function render(source: string, path: string): Promise<string> {
   if (exported.length === 0 && !(overview && project.artifacts.length === 0)) {
     throw new Error(`No artifact export found in ${path}`);
   }
-  return renderSpecPanel(graph, project, overview ? undefined : exported);
+  const inventory = exported.some(
+    (artifact) =>
+      artifact.kind === "architecture-block" ||
+      "acceptanceCriteria" in artifact,
+  )
+    ? readTraceLinks(specs, project, new Map([[path, source]]))
+    : undefined;
+  return renderSpecPanel(
+    graph,
+    project,
+    overview ? undefined : exported,
+    "overview",
+    inventory?.code,
+    inventory?.tests,
+  );
 }
 
 async function importSource(

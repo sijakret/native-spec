@@ -2,6 +2,7 @@ import {
   figure,
   implementsRequirement,
   type Bindings,
+  type Callable,
   type Implementation,
 } from "../../definition/process.js";
 import type * as desk from "../../../src/main.js";
@@ -41,26 +42,29 @@ export interface InventoryDeskLinks extends Implementation<
   [typeof desk]
 > {
   readonly contract: {
-    currentState: object;
-    errorText: object;
-    perform: object;
-    formValues: object;
-    onRestock: object;
-    onReserve: object;
-    onCloseOrder: object;
-    onNavigate: object;
-    onSearch: object;
-    onReset: object;
-    onExport: object;
-    onImport: object;
-    orderTable: object;
-    overviewPage: object;
-    inventoryPage: object;
-    ordersPage: object;
-    draw: object;
-    boot: object;
+    currentState: Callable<desk.specBindings["currentState"]>;
+    errorText: Callable<desk.specBindings["errorText"]>;
+    perform: Callable<desk.specBindings["perform"]>;
+    formValues: Callable<desk.specBindings["formValues"]>;
+    onRestock: Callable<desk.specBindings["onRestock"]>;
+    onReserve: Callable<desk.specBindings["onReserve"]>;
+    onCloseOrder: Callable<desk.specBindings["onCloseOrder"]>;
+    onNavigate: Callable<desk.specBindings["onNavigate"]>;
+    onSearch: Callable<desk.specBindings["onSearch"]>;
+    onReset: Callable<desk.specBindings["onReset"]>;
+    onExport: Callable<desk.specBindings["onExport"]>;
+    onImport: Callable<desk.specBindings["onImport"]>;
+    orderTable: Callable<desk.specBindings["orderTable"]>;
+    overviewPage: Callable<desk.specBindings["overviewPage"]>;
+    inventoryPage: Callable<desk.specBindings["inventoryPage"]>;
+    ordersPage: Callable<desk.specBindings["ordersPage"]>;
+    draw: Callable<desk.specBindings["draw"]>;
+    boot: Callable<desk.specBindings["boot"]>;
   };
-  readonly bindings: Bindings<InventoryDeskLinks["contract"], desk.local>;
+  readonly specBindings: Bindings<
+    InventoryDeskLinks["contract"],
+    desk.specBindings
+  >;
 }
 
 export const inventoryDeskRelations = [

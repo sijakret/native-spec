@@ -23,57 +23,12 @@ Intuitively this should be some sort of optimum. Zero additional tooling is need
 
 ## TypeScript example
 
-The [Acme Stockroom demo](skills/native-spec/examples/typescript/) defines user needs, requirements, and tests as TypeScript values, with app code linked through erased native symbol references (see [full definition](skills/native-spec/examples/typescript/specs/definition/process.ts)). Additional fields and imports are omitted for illustration:
+The [Acme Stockroom demo](skills/native-spec/examples/typescript/) models requirements, architecture, tests, and delivery as ordinary TypeScript values. [Its README](skills/native-spec/examples/typescript/README.md) explains the core ideas and links directly to the implementations.
 
-```ts
-const manageStock = artifact.marketRequirement({
-  id: "REQ-MR-001",
-  title: "Manage stock without overselling",
-});
-const orderLifecycle = artifact.softwareRequirement({
-  id: "REQ-SR-002",
-  title: "Reserve, fulfill, or cancel an order",
-  acceptanceCriteria: [
-    {
-      id: "reserve-stock",
-      description: "Open orders reserve stock without reducing on-hand stock.",
-    },
-  ],
-});
-const stockroomSuite = artifact.testCase({
-  id: "TC-001",
-  title: "Stock stays consistent through order transitions",
-  code: ["tests/domain.test.ts"],
-});
-
-const orderLifecycleRelations = [
-  derivesFrom(orderLifecycle, manageStock),
-] as const;
-const stockroomSuiteRelations = [
-  verifies(stockroomSuite, orderLifecycle, "reserve-stock"),
-] as const;
-```
-
-Each acceptance criterion has a stable local ID and must link to at least one test case; verifying one criterion does not cover the whole requirement.
-
-Each artifact file exports its outgoing relations alongside the artifact. The artifact index explicitly collects both inventories; reusable constructors and validation rules stay in the process definition.
-
-The [architecture overview](skills/native-spec/examples/typescript/specs/artifacts/architecture/000-architecture.ts) lives alongside the ABBs. Its main diagram describes the whole system and must contain every registered building block; every ABB also requires a summary diagram, shown on the architecture front page. Excalidraw and Mermaid are supported. The example uses editable Excalidraw SVGs, with visible ABB nodes checked against their actual embedded scenes, without generated intermediate files.
-
-Type-only `Implementation<typeof abb, [typeof module, typeof module.function, ModuleClass["method"]]>` declarations link real source symbols to ABBs. Native TypeScript checks missing modules and members and supplies editor navigation; no runtime annotations, stripping plugin, or custom editor checker is needed. A build-time coverage audit under `specs/audit/` enumerates app code independently and derives requirements through code -> ABB -> requirements. Private links use one ABB interface with an inline `contract` and checked `bindings` field; the source exports only `local = Bindings<Links["contract"], ...>`. Both ends check the same declaration, without a separate slot manifest, exported private functions, or repeated private target list. CSS/declaration files retain supporting file entries. No handwritten link ledger or generated intermediate files are involved.
-
-You can then also instantiate your spec for additional runtime checks or other processing:
-
-```ts
-// your live spec, checked for consistency already
-export const project = defineProject({
-  id: "acme-stockroom",
-  title: "Acme Stockroom",
-  overview: architectureOverview,
-  artifacts,
-  relations,
-});
-```
+- **Native references:** erased `specBindings` connect architecture blocks to exported and private code without changing runtime visibility.
+- **Required verification:** every acceptance criterion directly references at least one executable test or suite, without a separate test-case artifact or relation map.
+- **Complementary checks:** the compiler checks types and references; the audit checks complete ownership, actual test registrations, and architecture diagrams. Links do not prove behavioral correctness.
+- **One source of truth:** the optional viewer and document renderers derive views from the same model, with no handwritten mirror or generated link ledger.
 
 ## Get Started
 

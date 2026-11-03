@@ -14,7 +14,7 @@ import {
 import { exportWorkspace, importWorkspace, WorkspaceStore } from "./storage.js";
 import "./styles.css";
 
-export type local = Bindings<
+export type specBindings = Bindings<
   InventoryDeskLinks["contract"],
   {
     currentState: typeof currentState;

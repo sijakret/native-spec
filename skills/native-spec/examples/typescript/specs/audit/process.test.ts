@@ -12,6 +12,7 @@ import {
   figureParts,
   figureToken,
   isFigure,
+  testedBy,
   validateProject,
   verifies,
   type ArtifactKind,
@@ -23,9 +24,9 @@ import {
   codeTraceabilityAudit,
   inventory,
   inventoryDesk,
+  orderLifecycle,
   orderStates,
   stockDomain,
-  stockroomSuite,
 } from "../artifacts/index.js";
 import { architectureOverview } from "../artifacts/architecture/000-architecture.js";
 import project from "../definition/project.js";
@@ -246,12 +247,12 @@ describe("native spec", () => {
   it("collects outgoing relations declared alongside their source artifacts", async () => {
     const inventoryModule =
       await import("../artifacts/requirements/001-inventory.sr.js");
-    const suiteModule =
-      await import("../artifacts/tests/001-stockroom-suite.tc.js");
+    const ordersModule =
+      await import("../artifacts/requirements/002-order-lifecycle.sr.js");
 
     for (const [module, artifact, name] of [
       [inventoryModule, inventory, "inventoryRelations"],
-      [suiteModule, stockroomSuite, "stockroomSuiteRelations"],
+      [ordersModule, orderLifecycle, "orderLifecycleRelations"],
     ] as const) {
       expect(module).toHaveProperty(
         name,
@@ -262,7 +263,7 @@ describe("native spec", () => {
     }
   });
 
-  it("requires a test link for every acceptance criterion", () => {
+  it("accepts native criterion references without duplicate artifact relations and still validates legacy edges", () => {
     const artifact = artifactFactory("criteria");
     const requirement = artifact.softwareRequirement({
       id: "REQ-SR-001",
@@ -273,10 +274,12 @@ describe("native spec", () => {
         {
           id: "non-negative-stock",
           description: "Stock cannot become negative",
+          tests: testedBy<[() => void]>(),
         },
         {
           id: "whole-quantities",
           description: "Quantities must be whole numbers",
+          tests: testedBy<[() => void]>(),
         },
       ],
     });
@@ -295,14 +298,9 @@ describe("native spec", () => {
       artifacts: [requirement, test],
       relations: [],
     };
-    expect(validateProject(example)).toEqual([
-      "Missing verifies target: software-requirement:REQ-SR-001:non-negative-stock",
-      "Missing verifies target: software-requirement:REQ-SR-001:whole-quantities",
-    ]);
+    expect(validateProject(example)).toEqual([]);
     const first = verifies(test, requirement, "non-negative-stock");
-    expect(validateProject({ ...example, relations: [first] })).toEqual([
-      "Missing verifies target: software-requirement:REQ-SR-001:whole-quantities",
-    ]);
+    expect(validateProject({ ...example, relations: [first] })).toEqual([]);
     const covered = {
       ...example,
       relations: [first, verifies(test, requirement, "whole-quantities")],
@@ -334,8 +332,6 @@ describe("native spec", () => {
       } as unknown as SpecProject),
     ).toEqual([
       "Verification must target an acceptance criterion: software-requirement:REQ-SR-001",
-      "Missing verifies target: software-requirement:REQ-SR-001:non-negative-stock",
-      "Missing verifies target: software-requirement:REQ-SR-001:whole-quantities",
     ]);
     expect(
       validateProject({
@@ -345,18 +341,38 @@ describe("native spec", () => {
           covered.relations[1]!,
         ],
       }),
-    ).toEqual([
-      "Missing relation source: test-case:TC-002",
-      "Missing verifies target: software-requirement:REQ-SR-001:non-negative-stock",
-    ]);
+    ).toEqual(["Missing relation source: test-case:TC-002"]);
+  });
+
+  it("requires criterion references even for untyped runtime input, without a test-case artifact", () => {
+    const acceptanceCriteria = inventory.acceptanceCriteria.map(
+      ({ tests, ...criterion }) => criterion,
+    );
+    expect(
+      validateProject({
+        id: project.id,
+        title: "Missing native references",
+        artifacts: [{ ...inventory, acceptanceCriteria }],
+        relations: [],
+      } as unknown as SpecProject),
+    ).toEqual(
+      inventory.acceptanceCriteria.map(
+        (criterion) =>
+          `Acceptance criterion tests are required: software-requirement:${inventory.id}:${criterion.id}`,
+      ),
+    );
   });
 
   it("rejects invalid and duplicate criterion definitions", () => {
     const artifact = {
       ...inventory,
       acceptanceCriteria: [
-        { id: "bad id", description: "" },
-        { id: "bad id", description: "Duplicate" },
+        { id: "bad id", description: "", tests: testedBy<[() => void]>() },
+        {
+          id: "bad id",
+          description: "Duplicate",
+          tests: testedBy<[() => void]>(),
+        },
       ] as const,
     };
     expect(
@@ -371,7 +387,6 @@ describe("native spec", () => {
       "Acceptance criterion description is required: software-requirement:REQ-SR-001:bad id",
       "Invalid acceptance criterion ID: software-requirement:REQ-SR-001:bad id",
       "Duplicate acceptance criterion: software-requirement:REQ-SR-001:bad id",
-      "Missing verifies target: software-requirement:REQ-SR-001:bad id",
     ]);
   });
 
@@ -399,10 +414,6 @@ describe("native spec", () => {
     expect(graph.incoming.get(key)?.map((relation) => relation.kind)).toEqual([
       "implements",
       "implements",
-      "verifies",
-      "verifies",
-      "verifies",
-      "verifies",
       "delivers",
     ]);
     expect(
@@ -413,7 +424,7 @@ describe("native spec", () => {
             ? [relation.to.criterion]
             : [],
         ),
-    ).toEqual(["search", "availability", "restock", "overview"]);
+    ).toEqual([]);
   });
 
   it("rejects completed sprints with open tasks", () => {
@@ -437,39 +448,51 @@ describe("native spec", () => {
   });
 
   it("renders Markdown and HTML from the graph", () => {
-    expect(renderMarkdown(project)).toContain(
-      "- **Tested by:** [TC-001 - Stockroom Suite](#tc-001)",
-    );
+    expect(renderMarkdown(project)).toContain("## Software Requirements");
+    expect(
+      project.artifacts.some(
+        (artifact) => String(artifact.kind) === "test-case",
+      ),
+    ).toBe(false);
+    expect(
+      project.relations.some(
+        (relation) => String(relation.kind) === "verifies",
+      ),
+    ).toBe(false);
+    expect(validateProject(project)).toEqual([]);
     expect(renderHtml(project)).toContain('<article id="req-sr-001">');
   });
 
   it("renders verification links at criterion granularity", () => {
-    const example = {
-      ...project,
-      relations: [verifies(stockroomSuite, inventory, "search")],
-    };
-    const html = renderHtml(example);
+    const testInventory = [
+      {
+        kind: "test" as const,
+        file: "tests/domain.test.ts",
+        symbol: "seededInventory",
+        line: 20,
+        column: 1,
+        endLine: 30,
+        verifications: [{ requirement: inventory.id, criterion: "search" }],
+      },
+    ];
+    const html = renderHtml(project, { testInventory });
     expect(html).toMatch(
-      /<li class="criterion-item" id="req-sr-001-ac-search">.*Tested by .*href="#tc-001"/,
+      /<li class="criterion-item" id="req-sr-001-ac-search">.*aria-label="Tests for search".*data-code-file="tests\/domain.test.ts"/,
     );
     expect(html).not.toMatch(
       /<li id="req-sr-001-ac-availability">.*Tested by:/,
     );
-    expect(html).toContain(
-      'href="#req-sr-001-ac-search" data-source-anchor="req-sr-001"',
-    );
+    expect(html).not.toContain('aria-label="Tests for availability"');
     expect(html).toContain('data-path="acceptanceCriteria.0.description"');
     expect(html).toContain('data-source-path="acceptanceCriteria.0.id"');
-    const markdown = renderMarkdown(example);
+    const markdown = renderMarkdown(project, { testInventory });
     expect(markdown).toContain(
       '<a id="req-sr-001-ac-search"></a>\n\n- **search:**',
     );
     expect(markdown).toContain(
-      "- **search:** Search matches product names and SKUs without case sensitivity. (Tested by: [TC-001 - Stockroom Suite](#tc-001))",
+      "- **search:** Search matches product names and SKUs without case sensitivity. (Tests: [Test: seededInventory](<tests/domain.test.ts#L20>))",
     );
-    expect(markdown).toContain(
-      "[REQ-SR-001 - Inventory and Overview / search](#req-sr-001-ac-search)",
-    );
+    expect(markdown).not.toContain("TC-001");
   });
 
   it("renders intended uses in Markdown and escapes them in HTML", () => {
@@ -739,7 +762,7 @@ describe("native spec", () => {
     it("derives the sidecar next to its module", () => {
       const sketch = figure(moduleUrl, 2, "Stock [draft]");
       expect(sketch.excalidraw).toBe(
-        "file:///repo/specs/artifacts/architecture/001-stock-domain.abb.figure-002.excalidraw.svg",
+        "file:///repo/specs/artifacts/architecture/figures/001-stock-domain.abb.figure-002.excalidraw.svg",
       );
       expect(sketch.ref).toBe(`[Stock \\[draft\\]](<${sketch.excalidraw}>)`);
       expect(sketch.image).toBe(`![Stock \\[draft\\]](<${sketch.excalidraw}>)`);
@@ -795,16 +818,16 @@ describe("native spec", () => {
         url.replace("file:///repo/specs/", "../");
       const exported = renderHtml(example, { figureHref: relative });
       expect(exported).toContain(
-        'src="../artifacts/architecture/001-stock-domain.abb.figure-001.excalidraw.svg"',
+        'src="../artifacts/architecture/figures/001-stock-domain.abb.figure-001.excalidraw.svg"',
       );
       expect(exported).toContain(
-        'href="../artifacts/architecture/001-stock-domain.abb.figure-001.excalidraw.svg"',
+        'href="../artifacts/architecture/figures/001-stock-domain.abb.figure-001.excalidraw.svg"',
       );
       expect(exported).toContain(`data-excalidraw="${sketch.excalidraw}"`);
 
       const markdown = renderMarkdown(example, { figureHref: relative });
       expect(markdown).toContain(
-        "Follows [Flow <v2>](<../artifacts/architecture/001-stock-domain.abb.figure-001.excalidraw.svg>).",
+        "Follows [Flow <v2>](<../artifacts/architecture/figures/001-stock-domain.abb.figure-001.excalidraw.svg>).",
       );
       expect(markdown).toContain("- Draw ![Flow <v2>](<../artifacts/");
       expect(markdown).toContain(

@@ -20,15 +20,14 @@ import {
   inventoryDesk,
   orderLifecycle,
   stockDomain,
-  stockroomSuite,
 } from "./artifacts/index.js";
 import {
   buildGraph,
   delivers,
   implementsRequirement,
-  verifies,
 } from "./definition/process.js";
 import project from "./definition/project.js";
+import type { CodeEntry, TestEntry } from "./audit/code-audit.js";
 import {
   renderArtifactFragment,
   renderSpecPanel,
@@ -38,7 +37,10 @@ import {
   artifactAnchors,
   relationPeers,
 } from "./utils/output/rendering.js";
-import { findSpecsDirectory } from "./utils/spec-viewer/src/project.js";
+import {
+  codeSourceLocation,
+  findSpecsDirectory,
+} from "./utils/spec-viewer/src/project.js";
 import { themeColor } from "./utils/spec-viewer/src/webview/figure-colors.js";
 import {
   artifactSourceRange,
@@ -123,6 +125,273 @@ describe("spec viewer project discovery", () => {
   });
 });
 
+describe("code link rendering", () => {
+  it("resolves project-relative declarations and converts their coordinates for VS Code", () => {
+    const specs = join(import.meta.dirname);
+    expect(codeSourceLocation(specs, "src/domain.ts", 72, 10)).toEqual({
+      file: join(dirname(specs), "src/domain.ts"),
+      line: 71,
+      column: 9,
+    });
+    expect(codeSourceLocation(specs, "specs/audit/code-audit.ts").file).toBe(
+      join(specs, "audit/code-audit.ts"),
+    );
+    for (const file of ["../outside.ts", "/tmp/outside.ts", ""]) {
+      expect(() => codeSourceLocation(specs, file)).toThrow(
+        "inside the spec project",
+      );
+    }
+    for (const coordinate of [0, -1, 1.5, NaN, Infinity]) {
+      expect(() =>
+        codeSourceLocation(specs, "src/domain.ts", coordinate),
+      ).toThrow("positive line and column");
+      expect(() =>
+        codeSourceLocation(specs, "src/domain.ts", 1, coordinate),
+      ).toThrow("positive line and column");
+    }
+  });
+
+  const entry: CodeEntry = {
+    file: "src/domain.ts",
+    symbol: "record",
+    kind: "function",
+    line: 72,
+    column: 1,
+    endLine: 76,
+    architectureBlocks: [stockDomain.id],
+    requirements: [inventory.id],
+  };
+
+  it("renders owned code declarations with source coordinates, without inherited callbacks", () => {
+    const html = renderSpecPanel(
+      buildGraph(project),
+      project,
+      [stockDomain],
+      "overview",
+      [
+        { ...entry, symbol: "<module>", kind: "module", line: 1 },
+        entry,
+        {
+          ...entry,
+          symbol: "<callback@73:1>",
+          kind: "callback",
+          inheritedFrom: "src/domain.ts#record",
+        },
+        { ...entry, symbol: "save", architectureBlocks: [browserStorage.id] },
+      ],
+    );
+    const section = html.match(
+      /<section class="spec-list-box spec-code-links"[\s\S]*?<\/section>/,
+    )?.[0];
+    expect(section).toContain(
+      '<h4 id="abb-001-code-links">Code Links</h4><span class="count-badge">2</span>',
+    );
+    expect(section).toContain(
+      'data-code-file="src/domain.ts" data-code-line="72" data-code-column="1"',
+    );
+    expect(section).toContain("<code>record</code>");
+    expect(section).toContain("src/domain.ts:72");
+    expect(section).not.toContain("callback");
+    expect(section).not.toContain("<code>save</code>");
+  });
+
+  it("groups code declarations by escaped file path in collapsed native disclosures", () => {
+    const html = renderSpecPanel(
+      buildGraph(project),
+      project,
+      [stockDomain],
+      "overview",
+      [
+        entry,
+        { ...entry, file: "src/extra<&>.ts", symbol: "other" },
+        { ...entry, symbol: "second", line: 80 },
+      ],
+    );
+    const groups = [
+      ...html.matchAll(
+        /<details class="code-link-file">([\s\S]*?)<\/details>/g,
+      ),
+    ];
+    expect(groups).toHaveLength(2);
+    expect(groups[0]?.[1]).toContain(
+      '<code>src/domain.ts</code><span class="count-badge">2</span>',
+    );
+    expect(groups[0]?.[1]).toContain("<code>record</code>");
+    expect(groups[0]?.[1]).toContain("<code>second</code>");
+    expect(groups[0]?.[1]).not.toContain("<code>other</code>");
+    expect(groups[1]?.[1]).toContain("<code>src/extra&lt;&amp;&gt;.ts</code>");
+    expect(groups[1]?.[1]).toContain("<code>other</code>");
+    expect(html).toContain(
+      '<h4 id="abb-001-code-links">Code Links</h4><span class="count-badge">3</span>',
+    );
+    expect(html).not.toMatch(/<details[^>]*\bopen\b/);
+  });
+
+  it("does not add code lists to requirements, architecture overviews, or callers without inventory", () => {
+    const graph = buildGraph(project);
+    expect(
+      renderSpecPanel(graph, project, [inventory], "overview", [entry]),
+    ).not.toContain("spec-code-links");
+    expect(
+      renderSpecPanel(graph, project, undefined, "architecture", [entry]),
+    ).not.toContain("spec-code-links");
+    expect(renderSpecPanel(graph, project, [stockDomain])).not.toContain(
+      "spec-code-links",
+    );
+  });
+});
+
+describe("native test link rendering", () => {
+  const entry: TestEntry = {
+    kind: "test",
+    file: "tests/domain.test.ts",
+    symbol: "seededInventory",
+    line: 20,
+    column: 1,
+    endLine: 30,
+    verifications: [
+      { requirement: inventory.id, criterion: "search" },
+      { requirement: inventory.id, criterion: "overview" },
+      { requirement: orderLifecycle.id, criterion: "reserve-stock" },
+    ],
+  };
+
+  it("renders actual test source links inside their acceptance criteria, not in a separate section", () => {
+    const html = renderSpecPanel(
+      buildGraph(project),
+      project,
+      [inventory],
+      "overview",
+      undefined,
+      [entry],
+    );
+    expect(html).not.toContain("spec-test-links");
+    expect(html).toContain('aria-label="Tests for search"');
+    expect(html).toContain('aria-label="Tests for overview"');
+    expect(html).not.toContain('aria-label="Tests for availability"');
+    expect(html).not.toContain('aria-label="Tests for reserve-stock"');
+    expect(html).toContain(
+      'data-code-file="tests/domain.test.ts" data-code-line="20" data-code-column="1"',
+    );
+    expect(html.match(/<code>seededInventory<\/code>/g)).toHaveLength(2);
+  });
+
+  it("associates several tests or a suite directly with the selected criterion", () => {
+    const html = renderSpecPanel(
+      buildGraph(project),
+      project,
+      [inventory],
+      "overview",
+      undefined,
+      [
+        {
+          ...entry,
+          verifications: [{ requirement: inventory.id, criterion: "search" }],
+        },
+        {
+          ...entry,
+          symbol: "anotherCheck",
+          line: 40,
+          verifications: [{ requirement: inventory.id, criterion: "search" }],
+        },
+        {
+          ...entry,
+          kind: "suite",
+          symbol: "stockSuite",
+          verifications: [
+            { requirement: inventory.id, criterion: "availability" },
+          ],
+        },
+      ],
+    );
+    const search = html
+      .split('aria-label="Tests for search"')[1]
+      ?.split("</ul>")[0];
+    expect(search).toContain("<code>seededInventory</code>");
+    expect(search).toContain("<code>anotherCheck</code>");
+    expect(search).not.toContain("stockSuite");
+    const availability = html
+      .split('aria-label="Tests for availability"')[1]
+      ?.split("</ul>")[0];
+    expect(availability).toContain(
+      '<code>stockSuite</code><span class="test-kind">suite</span>',
+    );
+    expect(availability).not.toContain("seededInventory");
+  });
+
+  it("lists each criterion's tests on one line per file, with source coordinates and escaping", () => {
+    const html = renderSpecPanel(
+      buildGraph(project),
+      project,
+      [inventory],
+      "overview",
+      undefined,
+      [
+        {
+          ...entry,
+          verifications: [{ requirement: inventory.id, criterion: "search" }],
+        },
+        {
+          ...entry,
+          symbol: "second",
+          line: 42,
+          verifications: [{ requirement: inventory.id, criterion: "search" }],
+        },
+        {
+          ...entry,
+          kind: "suite",
+          file: "tests/other<&>.test.ts",
+          symbol: "suite",
+          verifications: [{ requirement: inventory.id, criterion: "search" }],
+        },
+      ],
+    );
+    const search = html
+      .split('aria-label="Tests for search"')[1]
+      ?.split("</ul>")[0];
+    const groups = [...(search ?? "").matchAll(/<li>([\s\S]*?)<\/li>/g)];
+    expect(groups).toHaveLength(2);
+    expect(groups[0]?.[1]).toContain(
+      '<span class="criterion-test-file">tests/domain.test.ts</span>',
+    );
+    expect(groups[0]?.[1]).toContain("<code>seededInventory</code>");
+    expect(groups[0]?.[1]).toContain("<code>second</code>");
+    expect(groups[0]?.[1]).toContain(
+      'data-code-file="tests/domain.test.ts" data-code-line="42" data-code-column="1"',
+    );
+    expect(groups[1]?.[1]).toContain(
+      '<span class="criterion-test-file">tests/other&lt;&amp;&gt;.test.ts</span>',
+    );
+    expect(groups[1]?.[1]).toContain(
+      '<code>suite</code><span class="test-kind">suite</span>',
+    );
+    expect(groups[0]?.[1]).not.toContain("test-kind");
+    expect(html).not.toContain("<details");
+  });
+
+  it("omits test lists without matching links and escapes source names", () => {
+    const graph = buildGraph(project);
+    expect(
+      renderSpecPanel(graph, project, [inventory], "overview", undefined, []),
+    ).not.toContain("spec-test-links");
+    expect(
+      renderSpecPanel(graph, project, [stockDomain], "overview", undefined, [
+        entry,
+      ]),
+    ).not.toContain("spec-test-links");
+    const html = renderSpecPanel(
+      graph,
+      project,
+      [inventory],
+      "overview",
+      undefined,
+      [{ ...entry, symbol: '<test & "name">' }],
+    );
+    expect(html).toContain("&lt;test &amp; &quot;name&quot;&gt;");
+    expect(html).not.toContain('<test & "name">');
+  });
+});
+
 describe("acceptance criterion navigation", () => {
   it("renders criteria with the shared counted list box and preserves source bindings", () => {
     const html = renderSpecPanel(buildGraph(project), project, [inventory]);
@@ -142,9 +411,9 @@ describe("acceptance criterion navigation", () => {
     );
     expect(criteria).toContain('data-path="acceptanceCriteria.0.description"');
     expect(criteria).toContain(
-      '<p class="criterion-meta"><span class="spec-list-id" data-source-path="acceptanceCriteria.0.id">search</span><span class="criterion-tests">Tested by ',
+      '<p class="criterion-meta"><span class="spec-list-id" data-source-path="acceptanceCriteria.0.id">search</span></p>',
     );
-    expect(criteria).toContain('href="#tc-001" data-source-anchor="tc-001"');
+    expect(criteria).not.toContain('href="#tc-001"');
     expect(html).toContain('class="spec-list-box relation-card"');
   });
 
@@ -156,7 +425,7 @@ describe("acceptance criterion navigation", () => {
       "req-sr-001-ac-restock",
       "req-sr-001-ac-overview",
     ]);
-    expect(artifactAnchors(stockroomSuite)).toEqual(["tc-001"]);
+    expect(artifactAnchors(firstSliceSprint)).toEqual(["sprint-0001"]);
     expect(
       project.artifacts.find((artifact) =>
         artifactAnchors(artifact).includes("req-sr-001-ac-search"),
@@ -174,10 +443,9 @@ describe("relation peer counts", () => {
       implementsRequirement(secondBlock, inventory),
       implementsRequirement(stockDomain, orderLifecycle),
       implementsRequirement(stockDomain, cdnApp),
-      verifies(stockroomSuite, inventory, "search"),
-      verifies(stockroomSuite, orderLifecycle, "valid-order"),
-      verifies(stockroomSuite, cdnApp, "static-build"),
       delivers(firstSliceSprint, inventory),
+      delivers(firstSliceSprint, orderLifecycle),
+      delivers(firstSliceSprint, cdnApp),
     ],
   };
   const graph = buildGraph(fixture);
@@ -205,8 +473,8 @@ describe("relation peer counts", () => {
       }).map((artifact) => artifact.id),
     ).toEqual(["REQ-NFR-001"]);
     expect(
-      relationPeers(graph, inventory, stockroomSuite, {
-        kind: "verifies",
+      relationPeers(graph, inventory, firstSliceSprint, {
+        kind: "delivers",
         direction: "incoming",
       }).map((artifact) => artifact.id),
     ).toEqual(["REQ-SR-001", "REQ-SR-002"]);
@@ -294,15 +562,15 @@ describe("relation peer counts", () => {
     );
   });
 
-  it("labels peers of incoming relations as also implemented and also tested", () => {
+  it("labels peers of incoming relations as also implemented and also delivered", () => {
     const html = renderSpecPanel(graph, fixture, [inventory]);
     expect(html).toContain("<span>Also implemented:</span>");
-    expect(html).toContain("<span>Also tested:</span>");
+    expect(html).toContain("<span>Also delivered:</span>");
     expect(html).toContain(
       'class="relation-context-heading" aria-hidden="true">Also implemented</span>',
     );
     expect(html).toContain(
-      'class="relation-context-heading" aria-hidden="true">Also tested</span>',
+      'class="relation-context-heading" aria-hidden="true">Also delivered</span>',
     );
     expect(html.match(/class="relation-context"/g)).toHaveLength(2);
     expect(
@@ -314,7 +582,7 @@ describe("relation peer counts", () => {
 
   it("separates other peer titles with commas and excludes the current item", () => {
     const html = renderSpecPanel(buildGraph(project), project, [inventory]);
-    expect(html.match(/class="relation-peer"/g)).toHaveLength(10);
+    expect(html.match(/class="relation-peer"/g)).toHaveLength(8);
     expect(html).toContain('class="relation-peer" href="#req-sr-002"');
     expect(html).toContain('class="relation-peer" href="#req-sr-003"');
     expect(html).toMatch(
@@ -789,6 +1057,22 @@ describe("spec viewer rendering", () => {
         source: withoutAudit,
       },
       { id: 10, path: architecture, source: architectureSource },
+      {
+        id: 11,
+        path: abb,
+        source: readFileSync(abb, "utf8").replace(
+          "[typeof domain]",
+          "[typeof domain.seedWorkspace]",
+        ),
+      },
+      {
+        id: 12,
+        path: join(dirname(abb), "004-code-traceability.abb.ts"),
+        source: readFileSync(
+          join(dirname(abb), "004-code-traceability.abb.ts"),
+          "utf8",
+        ),
+      },
     ];
     const result = spawnSync(
       process.execPath,
@@ -821,13 +1105,38 @@ describe("spec viewer rendering", () => {
           },
       );
     expect(responses.map((response) => response.id)).toEqual([
-      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
     ]);
-    // The worker evaluates sources from data: URLs; figures must still resolve beside the real file.
+    // The worker evaluates sources from data: URLs; figures must resolve beside the real file.
     expect(responses[4]?.html).toContain(
-      `data-excalidraw="${pathToFileURL(abb.replace(/\.ts$/, ".figure-001.excalidraw.svg")).href}"`,
+      `data-excalidraw="${pathToFileURL(abb.replace(/([^/]+)\.ts$/, "figures/$1.figure-001.excalidraw.svg")).href}"`,
+    );
+    expect(responses[4]?.error).toBeUndefined();
+    expect(responses[4]?.html).toContain("spec-code-links");
+    expect(responses[4]?.html).toContain("<code>seedWorkspace</code>");
+    expect(responses[4]?.html).toContain("<code>record</code>");
+    expect(responses[4]?.html).toContain("<code>Module</code>");
+    expect(responses[11]?.error).toBeUndefined();
+    expect(responses[11]?.html).not.toContain("<code>Module</code>");
+    expect(responses[11]?.html).toContain("<code>record</code>");
+    expect(responses[12]?.error).toBeUndefined();
+    expect(responses[12]?.html).toContain(
+      'data-code-file="specs/audit/code-audit.ts"',
+    );
+    expect(responses[12]?.html).toContain(
+      'data-code-file="specs/audit/code-check.ts"',
     );
     expect(responses[0]?.html).toContain('<article id="req-sr-001">');
+    expect(responses[0]?.html).not.toContain("spec-test-links");
+    expect(responses[0]?.html).toMatch(
+      /id="req-sr-001-ac-search".*aria-label="Tests for search".*<code>seededInventory<\/code>/,
+    );
+    expect(responses[0]?.html).toMatch(
+      /id="req-sr-001-ac-restock".*aria-label="Tests for restock".*<code>invalidQuantities<\/code>/,
+    );
+    expect(responses[0]?.html).toContain(
+      'data-code-file="tests/domain.test.ts"',
+    );
     expect(responses[0]?.locations?.["req-sr-001"]).toBe(file);
     expect(responses[0]?.locations?.["req-sr-001-ac-search"]).toBe(file);
     expect(responses[0]?.locations?.["req-sr-001-ac-overview"]).toBe(file);

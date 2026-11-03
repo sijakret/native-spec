@@ -2,6 +2,7 @@ import { buildGraph, validateProject } from "../../../definition/process.js";
 import project from "../../../definition/project.js";
 import { renderSpecPanel } from "../../output/html.js";
 import { artifactAnchors } from "../../output/rendering.js";
+import type { TraceLinks } from "../../../audit/code-audit.js";
 import { mount, showError } from "./webview/view.js";
 import "./webview/styles.css";
 
@@ -51,9 +52,27 @@ async function render(): Promise<void> {
       const problems = validateProject(project);
       if (problems.length) throw new Error(problems.join("\n"));
     }
+    let inventory: TraceLinks | undefined;
+    if (
+      artifact &&
+      (artifact.kind === "architecture-block" ||
+        "acceptanceCriteria" in artifact)
+    ) {
+      const response = await fetch("/__native-spec/trace-links");
+      if (!response.ok) throw new Error(await response.text());
+      inventory = (await response.json()) as TraceLinks;
+      if (location.hash.slice(1) !== anchor) return;
+    }
     await mount(
       app,
-      renderSpecPanel(graph, project, artifact ? [artifact] : undefined, page),
+      renderSpecPanel(
+        graph,
+        project,
+        artifact ? [artifact] : undefined,
+        page,
+        inventory?.code,
+        inventory?.tests,
+      ),
     );
     app.querySelector(".spec-toolbar")?.append(theme);
     window.scrollTo(0, 0);

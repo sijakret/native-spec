@@ -11,7 +11,6 @@ import { codeTraceability } from "../requirements/002-code-traceability.nfr.js";
 import { orderLifecycle } from "../requirements/002-order-lifecycle.sr.js";
 import { localData } from "../requirements/003-local-data.sr.js";
 import { invalidStock } from "../risks/001-invalid-stock.risk.js";
-import { stockroomSuite } from "../tests/001-stockroom-suite.tc.js";
 
 export const firstSliceSprint = artifact.sprint({
   id: "SPRINT-0001",
@@ -54,7 +53,8 @@ export const firstSliceSprint = artifact.sprint({
   ],
   implementation: [
     "Immutable stock and order rules, validated local persistence, and a Vite UI with a pinned runtime CDN renderer.",
-    "Erased Implementation links with native imported module/method references and a single ABB interface for each private contract and checked binding. Source-local type maps satisfy the same inline contract; the ABB checks the reverse export without a standalone slot manifest or repeated private target list. The audit resolves actual callable identity and derives requirement coverage through the architecture graph. Audits and invariant tests live under specs/audit; no validation worker, custom diagnostic layer, or runtime spec import ships in the browser bundle.",
+    "Acceptance criteria directly reference registered executable tests or nonempty Vitest suites through erased types. Multiple targets are supported, empty tuples and skipped targets are rejected, and source links appear on their criterion in the viewer and exports. No separate Stockroom test-case artifact or duplicate verification relations are required.",
+    "Erased Implementation links with one ABB contract and checked binding map for exported and private callables. Callable and Constructable preserve actual signatures and native type-definition navigation; source-local type maps satisfy the same inline contract, with a reverse check at the ABB and no standalone slot manifest or repeated callable target list. The viewer derives a Code Links list with declaration jumps from compiler-resolved symbols. The audit resolves actual callable identity and derives requirement coverage through the architecture graph. Audits and invariant tests live under specs/audit; no custom diagnostic layer or runtime spec import ships in the browser bundle.",
   ],
   architectureReview: [
     {
@@ -93,6 +93,5 @@ export const firstSliceSprintRelations = [
   delivers(firstSliceSprint, browserStorage),
   delivers(firstSliceSprint, inventoryDesk),
   delivers(firstSliceSprint, codeTraceabilityAudit),
-  delivers(firstSliceSprint, stockroomSuite),
   delivers(firstSliceSprint, invalidStock),
 ] as const;

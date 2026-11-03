@@ -34,6 +34,7 @@ interface BaseArtifact<
 export interface AcceptanceCriterion {
   readonly id: string;
   readonly description: string;
+  readonly tests: TestReferences;
 }
 
 interface RequirementFields<
@@ -160,7 +161,7 @@ export const figureToken =
   /(!?)\[((?:\\.|[^\\\]])*)\]\(<([^<>]+\.excalidraw\.svg)>\)/g;
 
 // `figure(import.meta.url, 1, "Order states")` in `001-stock-domain.abb.ts`
-// -> `001-stock-domain.abb.figure-001.excalidraw.svg` in the same folder.
+// -> `figures/001-stock-domain.abb.figure-001.excalidraw.svg`.
 export function figure(
   moduleUrl: string,
   number: number,
@@ -175,7 +176,7 @@ export function figure(
     .pop()!
     .replace(/\.[cm]?[jt]s$/, "");
   const excalidraw = new URL(
-    `${name}.figure-${String(number).padStart(3, "0")}${figureSuffix}`,
+    `figures/${name}.figure-${String(number).padStart(3, "0")}${figureSuffix}`,
     url,
   ).href;
   const label = title.replace(/[\\[\]]/g, "\\$&");
@@ -238,11 +239,35 @@ export type Implementation<
   readonly targets: Targets;
 };
 
+export type Callable<
+  Target extends (...args: never[]) => unknown = (...args: never[]) => unknown,
+> = Target;
+
+export type Constructable<
+  Target extends abstract new (...args: never[]) => object = abstract new (
+    ...args: never[]
+  ) => object,
+> = Target;
+
 export type Bindings<
   Contract extends object,
   Targets extends Contract &
     Record<Exclude<keyof Targets, keyof Contract>, never>,
 > = Targets;
+
+declare const testTargets: unique symbol;
+
+export type TestReferences<
+  Targets extends OneOrMore<Callable> = OneOrMore<Callable>,
+> = {
+  readonly [testTargets]: Targets;
+};
+
+export function testedBy<Targets extends OneOrMore<Callable> = never>(
+  ..._targets: [Targets] extends [never] ? [never] : []
+): TestReferences<Targets> {
+  return Object.freeze({}) as TestReferences<Targets>;
+}
 
 export type TestCase<
   Project extends string = string,
@@ -641,19 +666,9 @@ type StaticProblems<
       "Missing verifies source"
     >
   | Missing<
-      CriterionKeys<Artifacts>,
-      VerifiedCriterionKeys<Relations>,
-      "Missing verifies target"
-    >
-  | Missing<
       VerifiedCriterionKeys<Relations>,
       CriterionKeys<Artifacts>,
       "Missing acceptance criterion"
-    >
-  | Missing<
-      KeysOfKind<Artifacts, "risk">,
-      TargetKeys<Relations, "verifies">,
-      "Missing verifies target"
     >
   | Missing<
       KeysOfKind<Artifacts, "sprint">,
@@ -742,7 +757,6 @@ export function validateProject(project: SpecProject): readonly string[] {
   const artifactKeys = new Set<string>();
   const relationKeys = new Set<string>();
   const criterionKeys = new Set<string>();
-  const verifiedCriteria = new Set<string>();
 
   for (const artifact of project.artifacts) {
     const key = artifactKey(artifact);
@@ -764,6 +778,10 @@ export function validateProject(project: SpecProject): readonly string[] {
         )
           problems.push(
             `Acceptance criterion description is required: ${criterionKey}`,
+          );
+        if (typeof criterion.tests !== "object" || criterion.tests === null)
+          problems.push(
+            `Acceptance criterion tests are required: ${criterionKey}`,
           );
         if (criterionKeys.has(criterionKey))
           problems.push(`Duplicate acceptance criterion: ${criterionKey}`);
@@ -835,24 +853,9 @@ export function validateProject(project: SpecProject): readonly string[] {
         const criterionKey = `${to}:${criterion}`;
         if (!criterionKeys.has(criterionKey))
           problems.push(`Missing acceptance criterion: ${criterionKey}`);
-        else if (
-          project.artifacts.some(
-            (artifact) =>
-              artifactKey(artifact) === from &&
-              artifact.kind === "test-case" &&
-              artifact.project === project.id &&
-              relation.from.project === project.id &&
-              relation.to.project === project.id,
-          )
-        )
-          verifiedCriteria.add(criterionKey);
       }
     }
   }
-
-  for (const key of criterionKeys)
-    if (!verifiedCriteria.has(key))
-      problems.push(`Missing verifies target: ${key}`);
 
   return problems;
 }

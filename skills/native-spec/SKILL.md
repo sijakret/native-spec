@@ -25,7 +25,7 @@ If the model has architecture blocks, keep a required architecture overview with
 
 For code traceability, link implementation code to architecture blocks with native symbol references that the compiler and editor already check; avoid comment IDs, runtime annotation calls, handwritten ledgers, generated intermediates, and custom editor validation workers. Declare links beside their block, keep them out of production output, and cover private code without widening its visibility where the language allows. Add an independent build-time audit that enumerates the source tree, resolves links to actual symbols, requires complete ownership, and derives requirement coverage through implementation relations (code → block → requirements). Reserve plain file paths for assets without addressable symbols. Keep coverage audits and artifact/process invariant tests together in a dedicated spec audit folder.
 
-The [TypeScript guide](./examples/typescript/README.md) shows one realization: Excalidraw/Mermaid overviews and summaries, erased `Implementation` type aliases, private-slot `Bindings`, and the coverage audit.
+The [TypeScript guide](./examples/typescript/README.md) shows one realization: Excalidraw/Mermaid overviews and summaries, erased `Implementation` links, uniform `Bindings` contracts for exported and private symbols, reusable callable/constructor constraints, and the coverage audit.
 
 - **Greenfield:** define needs, then requirements, architecture, tests, and risks as design emerges. Keep the first sprint planned until implemented.
 - **Brownfield:** document current behavior using existing modules and real test paths; add requirements, constraints, and mitigated risks. Use one completed baseline sprint if the model includes sprints.

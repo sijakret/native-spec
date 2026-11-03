@@ -1,9 +1,19 @@
 import type { Bindings } from "../specs/definition/process.js";
 import type { StockDomainLinks } from "../specs/artifacts/architecture/001-stock-domain.abb.js";
 
-export type local = Bindings<
+export type specBindings = Bindings<
   StockDomainLinks["contract"],
   {
+    seedWorkspace: typeof seedWorkspace;
+    quantity: typeof quantity;
+    validateWorkspace: typeof validateWorkspace;
+    reservedFor: typeof reservedFor;
+    availableFor: typeof availableFor;
+    restock: typeof restock;
+    reserveOrder: typeof reserveOrder;
+    closeOrder: typeof closeOrder;
+    searchProducts: typeof searchProducts;
+    stockSummary: typeof stockSummary;
     record: typeof record;
     text: typeof text;
     parseProduct: typeof parseProduct;

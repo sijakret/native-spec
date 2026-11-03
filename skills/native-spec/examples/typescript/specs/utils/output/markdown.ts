@@ -17,8 +17,11 @@ import {
   sections,
 } from "./rendering.js";
 import { boundFields } from "./views.js";
+import type { TestEntry } from "../../audit/code-audit.js";
 
 export interface MarkdownRenderOptions {
+  readonly testInventory?: readonly TestEntry[];
+  readonly sourceHref?: (file: string) => string;
   // Maps an Excalidraw sidecar URL to the image link written into the document.
   readonly figureHref?: (url: string) => string;
 }
@@ -73,7 +76,7 @@ export function renderMarkdown(
         `### ${artifact.id} - ${artifact.title}`,
         "",
       );
-      renderArtifact(lines, artifact, graph);
+      renderArtifact(lines, artifact, options);
 
       const key = artifactKey(artifact);
       const outgoing = graph.outgoing.get(key) ?? [];
@@ -131,7 +134,7 @@ function escapeMarkdown(value: string): string {
 function renderArtifact(
   lines: string[],
   artifact: Artifact,
-  graph: ReturnType<typeof buildGraph>,
+  options: MarkdownRenderOptions,
 ): void {
   for (const bound of boundFields(artifact)) {
     switch (bound.kind) {
@@ -150,11 +153,15 @@ function renderArtifact(
       case "criteria":
         lines.push(`**${bound.label}:**`, "");
         for (const criterion of bound.value) {
-          const tests = criterionTests(graph, artifact, criterion.id);
+          const tests = criterionTests(
+            options.testInventory,
+            artifact,
+            criterion.id,
+          );
           lines.push(
             `<a id="${criterionAnchor(artifact, criterion.id)}"></a>`,
             "",
-            `- **${escapeMarkdown(criterion.id)}:** ${criterion.description}${tests.length ? ` (Tested by: ${tests.map(artifactLink).join(", ")})` : ""}`,
+            `- **${escapeMarkdown(criterion.id)}:** ${criterion.description}${tests.length ? ` (Tests: ${tests.map((test) => `[${test.kind === "suite" ? "Suite" : "Test"}: ${escapeMarkdown(test.symbol)}](<${options.sourceHref?.(test.file) ?? test.file.split("/").map(encodeURIComponent).join("/")}#L${test.line}>)`).join(", ")})` : ""}`,
             "",
           );
         }

@@ -7,6 +7,7 @@ import { parseArgs } from "node:util";
 import project from "../definition/project.js";
 import { renderHtml } from "./output/html.js";
 import { renderMarkdown } from "./output/markdown.js";
+import { readTraceLinks } from "../audit/code-audit.js";
 
 const usage = `Usage: npm run specs:render -- <markdown|html> [options]
 
@@ -44,12 +45,31 @@ export async function run(args: readonly string[]): Promise<void> {
   const base = values.output ? dirname(resolve(values.output)) : process.cwd();
   const figureHref = (url: string): string =>
     url.startsWith("file:")
-      ? relative(base, fileURLToPath(url)).split(sep).map(encodeURIComponent).join("/")
+      ? relative(base, fileURLToPath(url))
+          .split(sep)
+          .map(encodeURIComponent)
+          .join("/")
       : url;
+  const specs = fileURLToPath(new URL("../", import.meta.url));
+  const links = readTraceLinks(specs, project);
+  const sourceHref = (file: string): string =>
+    relative(base, resolve(specs, "..", file))
+      .split(sep)
+      .map(encodeURIComponent)
+      .join("/");
   const output =
     format === "markdown"
-      ? renderMarkdown(project, { figureHref })
-      : renderHtml(project, { stylesheets: values.stylesheet, figureHref });
+      ? renderMarkdown(project, {
+          figureHref,
+          sourceHref,
+          testInventory: links.tests,
+        })
+      : renderHtml(project, {
+          stylesheets: values.stylesheet,
+          figureHref,
+          codeInventory: links.code,
+          testInventory: links.tests,
+        });
 
   if (values.output) {
     const outputPath = resolve(values.output);

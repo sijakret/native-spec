@@ -38,10 +38,6 @@ import {
   firstSliceSprint,
   firstSliceSprintRelations,
 } from "./sprints/0001-first-slice.sprint.js";
-import {
-  stockroomSuite,
-  stockroomSuiteRelations,
-} from "./tests/001-stockroom-suite.tc.js";
 
 export {
   stockDomain,
@@ -56,7 +52,6 @@ export {
   codeTraceability,
   invalidStock,
   firstSliceSprint,
-  stockroomSuite,
   orderStates,
 };
 
@@ -71,7 +66,6 @@ export const artifacts = [
   browserStorage,
   inventoryDesk,
   codeTraceabilityAudit,
-  stockroomSuite,
   invalidStock,
   firstSliceSprint,
 ] as const;
@@ -84,7 +78,6 @@ export const relations = [
   ...browserStorageRelations,
   ...inventoryDeskRelations,
   ...codeTraceabilityAuditRelations,
-  ...stockroomSuiteRelations,
   ...invalidStockRelations,
   ...firstSliceSprintRelations,
 ] as const;

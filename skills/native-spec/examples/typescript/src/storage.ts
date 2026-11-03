@@ -1,4 +1,17 @@
+import type { Bindings } from "../specs/definition/process.js";
+import type { BrowserStorageLinks } from "../specs/artifacts/architecture/002-browser-storage.abb.js";
 import { seedWorkspace, validateWorkspace, type Workspace } from "./domain.js";
+
+export type specBindings = Bindings<
+  BrowserStorageLinks["contract"],
+  {
+    importWorkspace: typeof importWorkspace;
+    exportWorkspace: typeof exportWorkspace;
+    WorkspaceStore: typeof WorkspaceStore;
+    load: WorkspaceStore["load"];
+    save: WorkspaceStore["save"];
+  }
+>;
 
 export const storageKey = "acme-stockroom:v1";
 export type StoragePort = Pick<Storage, "getItem" | "setItem">;

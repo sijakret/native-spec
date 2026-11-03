@@ -11,7 +11,7 @@ import {
   editArtifactSource,
   type PathSegment,
 } from "./edits.js";
-import { findSpecsDirectory } from "./project.js";
+import { codeSourceLocation, findSpecsDirectory } from "./project.js";
 
 const viewType = "nativeSpec.artifact";
 const artifactFilename = /\.(?:abb|mr|sr|nfr|tc|risk|sprint)\.ts$/;
@@ -29,6 +29,9 @@ type WebviewMessage =
       readonly type: "source";
       readonly anchor?: string;
       readonly path?: readonly PathSegment[];
+      readonly file?: string;
+      readonly line?: number;
+      readonly column?: number;
     }
   | {
       readonly type: "edit";
@@ -251,6 +254,12 @@ class ArtifactEditorProvider implements vscode.CustomTextEditorProvider {
       renderer.reset();
       schedule();
     };
+    const sourceWatcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(
+        vscode.Uri.file(join(specs, "..")),
+        "{src,tests}/**/*",
+      ),
+    );
     const figureWatcher = vscode.workspace.createFileSystemWatcher(
       new vscode.RelativePattern(specsUri, `**/*${figureSuffix}`),
     );
@@ -260,6 +269,7 @@ class ArtifactEditorProvider implements vscode.CustomTextEditorProvider {
     };
     const disposables: vscode.Disposable[] = [
       watcher,
+      sourceWatcher,
       figureWatcher,
       figureWatcher.onDidChange(refreshFigures),
       figureWatcher.onDidCreate(refreshFigures),
@@ -267,6 +277,9 @@ class ArtifactEditorProvider implements vscode.CustomTextEditorProvider {
       watcher.onDidChange(resetAndSchedule),
       watcher.onDidCreate(resetAndSchedule),
       watcher.onDidDelete(resetAndSchedule),
+      sourceWatcher.onDidChange(resetAndSchedule),
+      sourceWatcher.onDidCreate(resetAndSchedule),
+      sourceWatcher.onDidDelete(resetAndSchedule),
       vscode.workspace.onDidChangeTextDocument((event) => {
         if (event.document.uri.toString() === document.uri.toString())
           schedule();
@@ -299,8 +312,20 @@ class ArtifactEditorProvider implements vscode.CustomTextEditorProvider {
         }
         if (message.type === "source") {
           try {
+            const code = message.file
+              ? codeSourceLocation(
+                  specs,
+                  message.file,
+                  message.line,
+                  message.column,
+                )
+              : undefined;
             let target = document;
-            if (message.anchor) {
+            if (code) {
+              target = await vscode.workspace.openTextDocument(
+                vscode.Uri.file(code.file),
+              );
+            } else if (message.anchor) {
               const file = locations[message.anchor];
               if (!file)
                 throw new Error(
@@ -317,10 +342,12 @@ class ArtifactEditorProvider implements vscode.CustomTextEditorProvider {
                   message.path,
                 )
               : { start: 0, end: 0 };
-            const selection = new vscode.Range(
-              target.positionAt(offsets.start),
-              target.positionAt(offsets.end),
-            );
+            const selection = code
+              ? new vscode.Range(code.line, code.column, code.line, code.column)
+              : new vscode.Range(
+                  target.positionAt(offsets.start),
+                  target.positionAt(offsets.end),
+                );
             await vscode.commands.executeCommand(
               "vscode.openWith",
               target.uri,
