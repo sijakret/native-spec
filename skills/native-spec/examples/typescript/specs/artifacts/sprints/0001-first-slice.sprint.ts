@@ -2,12 +2,10 @@ import { delivers } from "../../definition/process.js";
 import { stockDomain } from "../architecture/001-stock-domain.abb.js";
 import { browserStorage } from "../architecture/002-browser-storage.abb.js";
 import { inventoryDesk } from "../architecture/003-inventory-desk.abb.js";
-import { codeTraceabilityAudit } from "../architecture/004-code-traceability.abb.js";
 import { artifact } from "../factory.js";
 import { cdnApp } from "../requirements/001-cdn-app.nfr.js";
 import { inventory } from "../requirements/001-inventory.sr.js";
 import { manageStock } from "../requirements/001-manage-stock.mr.js";
-import { codeTraceability } from "../requirements/002-code-traceability.nfr.js";
 import { orderLifecycle } from "../requirements/002-order-lifecycle.sr.js";
 import { localData } from "../requirements/003-local-data.sr.js";
 import { invalidStock } from "../risks/001-invalid-stock.risk.js";
@@ -69,10 +67,6 @@ export const firstSliceSprint = artifact.sprint({
       text: "Reviewed ABB-003: the UI stays thin, loads lit-html from the pinned CDN, and renders only committed state.",
       done: true,
     },
-    {
-      text: "Reviewed ABB-004: the build audits app code separately and keeps spec tooling out of the bundle.",
-      done: true,
-    },
   ],
   documentationIntegrity: [
     {
@@ -88,10 +82,8 @@ export const firstSliceSprintRelations = [
   delivers(firstSliceSprint, orderLifecycle),
   delivers(firstSliceSprint, localData),
   delivers(firstSliceSprint, cdnApp),
-  delivers(firstSliceSprint, codeTraceability),
   delivers(firstSliceSprint, stockDomain),
   delivers(firstSliceSprint, browserStorage),
   delivers(firstSliceSprint, inventoryDesk),
-  delivers(firstSliceSprint, codeTraceabilityAudit),
   delivers(firstSliceSprint, invalidStock),
 ] as const;

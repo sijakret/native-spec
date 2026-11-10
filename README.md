@@ -4,9 +4,12 @@ Fast and durable specification modelling has become an essential building block 
 
 Spec-driven systems, however, often introduce drag or suffer from tooling and complexity.
 
-Native Spec solves this by simply expressing your process, its artifacts, and relations directly in your native language tooling.
+Native Spec is a concept that solves this by simply expressing your process, its artifacts, and relations directly in your native language tooling.
 
-## Why Native Spec
+This skill contains a TypeScript example.
+It is mostly for reference and you (or your agent) should adapt it to your needs when applying it to your domain.
+
+## Why Native Spec?
 
 Modeling your process within your native toolchain has a lot of benefits.
 

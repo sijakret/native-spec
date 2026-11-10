@@ -21,7 +21,6 @@ import {
 } from "../definition/process.js";
 import {
   browserStorage,
-  codeTraceabilityAudit,
   inventory,
   inventoryDesk,
   orderLifecycle,
@@ -81,12 +80,7 @@ describe("native spec", () => {
   describe("architecture overview", () => {
     const diagram = architectureDiagram({
       title: "Architecture overview",
-      blocks: [
-        stockDomain,
-        browserStorage,
-        inventoryDesk,
-        codeTraceabilityAudit,
-      ],
+      blocks: [stockDomain, browserStorage, inventoryDesk],
       connections: [],
     });
     const withDiagrams = (
@@ -161,12 +155,11 @@ describe("native spec", () => {
       });
       const second = architectureDiagram({
         ...diagram,
-        blocks: [diagram.blocks[2], diagram.blocks[3]],
+        blocks: [diagram.blocks[2]],
         connections: [],
       });
       expect(validateProject(withDiagrams(first, second))).toEqual([
         "Missing architecture overview block: architecture-block:ABB-003",
-        "Missing architecture overview block: architecture-block:ABB-004",
         "Missing architecture overview block: architecture-block:ABB-001",
         "Missing architecture overview block: architecture-block:ABB-002",
       ]);
@@ -591,8 +584,6 @@ describe("native spec", () => {
       "Persistence boundary",
       "Inventory desk summary",
       "Runtime boundaries",
-      "Code traceability audit summary",
-      "Traceability boundaries",
       "Reserve and persist an order",
     ];
     const captions = [

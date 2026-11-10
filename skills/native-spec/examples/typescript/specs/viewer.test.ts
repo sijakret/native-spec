@@ -729,7 +729,7 @@ describe("spec viewer rendering", () => {
     expect(html).not.toContain("Browse specification");
     expect(html).not.toContain("spec-metrics");
     expect(html).not.toContain("Intended uses");
-    expect(html.match(/class="architecture-block-copy"/g)).toHaveLength(4);
+    expect(html.match(/class="architecture-block-copy"/g)).toHaveLength(3);
     for (const artifact of project.artifacts) {
       if (artifact.kind === "architecture-block") {
         expect(html).toContain(`href="#${artifactAnchor(artifact)}"`);
@@ -878,8 +878,8 @@ describe("spec viewer rendering", () => {
     } satisfies typeof firstSliceSprint;
     const html = renderSpecPanel(buildGraph(project), project, [sprint]);
     expect(html.match(/<ul class="task-list">/g)).toHaveLength(4);
-    // Two tasks, four architecture reviews, and one documentation check.
-    expect(html.match(/<label class="task-label">/g)).toHaveLength(7);
+    // Two tasks, three architecture reviews, and one documentation check.
+    expect(html.match(/<label class="task-label">/g)).toHaveLength(6);
     expect(html).toContain(
       '<input type="checkbox" data-path="tasks.0.done" disabled>',
     );
@@ -1020,11 +1020,11 @@ describe("spec viewer rendering", () => {
     );
     const project = findSpecsDirectory(dirname(specs), file, "specs");
     const require = createRequire(join(project, "package.json"));
-    const withoutAudit = architectureSource.replace(
-      /(inventoryDesk),\s*codeTraceabilityAudit,?(\s*\])/,
+    const withoutDesk = architectureSource.replace(
+      /(browserStorage),\s*inventoryDesk,?(\s*\])/,
       "$1$2",
     );
-    expect(withoutAudit).not.toBe(architectureSource);
+    expect(withoutDesk).not.toBe(architectureSource);
     const requests = [
       { id: 0, path: file, source },
       {
@@ -1054,7 +1054,7 @@ describe("spec viewer rendering", () => {
       {
         id: 9,
         path: architecture,
-        source: withoutAudit,
+        source: withoutDesk,
       },
       { id: 10, path: architecture, source: architectureSource },
       {
@@ -1063,14 +1063,6 @@ describe("spec viewer rendering", () => {
         source: readFileSync(abb, "utf8").replace(
           "[typeof domain]",
           "[typeof domain.seedWorkspace]",
-        ),
-      },
-      {
-        id: 12,
-        path: join(dirname(abb), "004-code-traceability.abb.ts"),
-        source: readFileSync(
-          join(dirname(abb), "004-code-traceability.abb.ts"),
-          "utf8",
         ),
       },
     ];
@@ -1105,7 +1097,7 @@ describe("spec viewer rendering", () => {
           },
       );
     expect(responses.map((response) => response.id)).toEqual([
-      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
     ]);
     // The worker evaluates sources from data: URLs; figures must resolve beside the real file.
     expect(responses[4]?.html).toContain(
@@ -1119,13 +1111,6 @@ describe("spec viewer rendering", () => {
     expect(responses[11]?.error).toBeUndefined();
     expect(responses[11]?.html).not.toContain("<code>Module</code>");
     expect(responses[11]?.html).toContain("<code>record</code>");
-    expect(responses[12]?.error).toBeUndefined();
-    expect(responses[12]?.html).toContain(
-      'data-code-file="specs/audit/code-audit.ts"',
-    );
-    expect(responses[12]?.html).toContain(
-      'data-code-file="specs/audit/code-check.ts"',
-    );
     expect(responses[0]?.html).toContain('<article id="req-sr-001">');
     expect(responses[0]?.html).not.toContain("spec-test-links");
     expect(responses[0]?.html).toMatch(
@@ -1153,7 +1138,7 @@ describe("spec viewer rendering", () => {
     );
     expect(responses[5]?.html).toContain('aria-label="Architecture overview"');
     expect(responses[5]?.html).not.toContain("<figcaption");
-    expect(responses[5]?.html).toContain("ABB-004 - Code Traceability Audit");
+    expect(responses[5]?.html).toContain("ABB-003 - Inventory Desk UI");
     expect(responses[5]?.html).not.toContain("Browse specification");
     expect(responses[5]?.html).not.toContain("spec-metrics");
     expect(responses[5]?.html).not.toContain("Intended uses");
@@ -1174,7 +1159,7 @@ describe("spec viewer rendering", () => {
     expect(responses[8]?.html).not.toContain("Unsaved architecture");
     expect(responses[9]?.html).toBeUndefined();
     expect(responses[9]?.error).toContain(
-      "Missing architecture overview block: architecture-block:ABB-004",
+      "Missing architecture overview block: architecture-block:ABB-003",
     );
     expect(responses[10]?.html).toContain('<article id="spec-architecture"');
   });

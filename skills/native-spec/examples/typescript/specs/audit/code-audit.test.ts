@@ -13,15 +13,6 @@ import {
 } from "../definition/process.js";
 import { auditSources, readAppSources } from "./code-audit.js";
 
-export type specBindings = {
-  enumerateCode: typeof enumerateCode;
-  requirementLinks: typeof requirementLinks;
-  callbackInheritance: typeof callbackInheritance;
-  invalidLinks: typeof invalidLinks;
-  compilerContracts: typeof compilerContracts;
-  appBoundary: typeof appBoundary;
-};
-
 const stockDomain = { ...domainDefinition, files: undefined };
 const browserStorage = { ...storageDefinition, files: undefined };
 

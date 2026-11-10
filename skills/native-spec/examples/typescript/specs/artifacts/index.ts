@@ -11,10 +11,6 @@ import {
   inventoryDesk,
   inventoryDeskRelations,
 } from "./architecture/003-inventory-desk.abb.js";
-import {
-  codeTraceabilityAudit,
-  codeTraceabilityAuditRelations,
-} from "./architecture/004-code-traceability.abb.js";
 import { manageStock } from "./requirements/001-manage-stock.mr.js";
 import {
   inventory,
@@ -29,7 +25,6 @@ import {
   localDataRelations,
 } from "./requirements/003-local-data.sr.js";
 import { cdnApp } from "./requirements/001-cdn-app.nfr.js";
-import { codeTraceability } from "./requirements/002-code-traceability.nfr.js";
 import {
   invalidStock,
   invalidStockRelations,
@@ -43,13 +38,11 @@ export {
   stockDomain,
   browserStorage,
   inventoryDesk,
-  codeTraceabilityAudit,
   manageStock,
   inventory,
   orderLifecycle,
   localData,
   cdnApp,
-  codeTraceability,
   invalidStock,
   firstSliceSprint,
   orderStates,
@@ -61,11 +54,9 @@ export const artifacts = [
   orderLifecycle,
   localData,
   cdnApp,
-  codeTraceability,
   stockDomain,
   browserStorage,
   inventoryDesk,
-  codeTraceabilityAudit,
   invalidStock,
   firstSliceSprint,
 ] as const;
@@ -77,7 +68,6 @@ export const relations = [
   ...stockDomainRelations,
   ...browserStorageRelations,
   ...inventoryDeskRelations,
-  ...codeTraceabilityAuditRelations,
   ...invalidStockRelations,
   ...firstSliceSprintRelations,
 ] as const;
