@@ -6,6 +6,9 @@ Spec-driven systems, however, often introduce drag or suffer from tooling and co
 
 Native Spec is a concept that solves this by simply expressing your process, its artifacts, and relations directly in your native language tooling.
 
+No database, no json, no nothing.
+Just the specs right next to your code.
+
 This skill contains a TypeScript example.
 It is mostly for reference and you (or your agent) should adapt it to your needs when applying it to your domain.
 
