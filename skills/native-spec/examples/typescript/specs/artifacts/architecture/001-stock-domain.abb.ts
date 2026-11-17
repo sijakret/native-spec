@@ -1,8 +1,6 @@
 import {
   figure,
   implementsRequirement,
-  type Bindings,
-  type Callable,
   type Implementation,
 } from "../../definition/process.js";
 import type * as domain from "../../../src/domain.js";
@@ -29,32 +27,10 @@ export const stockDomain = artifact.architectureBlock({
   ],
 });
 
-export interface StockDomainLinks extends Implementation<
+export type StockDomainLinks = Implementation<
   typeof stockDomain,
-  [typeof domain]
-> {
-  readonly contract: {
-    seedWorkspace: Callable<typeof domain.seedWorkspace>;
-    quantity: Callable<typeof domain.quantity>;
-    validateWorkspace: Callable<typeof domain.validateWorkspace>;
-    reservedFor: Callable<typeof domain.reservedFor>;
-    availableFor: Callable<typeof domain.availableFor>;
-    restock: Callable<typeof domain.restock>;
-    reserveOrder: Callable<typeof domain.reserveOrder>;
-    closeOrder: Callable<typeof domain.closeOrder>;
-    searchProducts: Callable<typeof domain.searchProducts>;
-    stockSummary: Callable<typeof domain.stockSummary>;
-    record: Callable<domain.specBindings["record"]>;
-    text: Callable<domain.specBindings["text"]>;
-    parseProduct: Callable<domain.specBindings["parseProduct"]>;
-    parseOrder: Callable<domain.specBindings["parseOrder"]>;
-    unique: Callable<domain.specBindings["unique"]>;
-  };
-  readonly specBindings: Bindings<
-    StockDomainLinks["contract"],
-    domain.specBindings
-  >;
-}
+  [typeof domain, domain.specBindings]
+>;
 
 export const stockDomainRelations = [
   implementsRequirement(stockDomain, inventory),

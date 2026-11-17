@@ -15,15 +15,9 @@ import {
 import { seedWorkspace } from "../src/domain.js";
 import { importWorkspace, storageKey } from "../src/storage.js";
 
-export type specBindings = {
+export interface specBindings {
   staticBuild: typeof staticBuild;
-  browserNavigation: typeof browserNavigation;
-  confirmedReset: typeof confirmedReset;
-  browserLocalData: typeof browserLocalData;
-  preservedState: typeof preservedState;
-  loadingFailure: typeof loadingFailure;
-};
-
+}
 function staticBuild() {
   const root = resolve(import.meta.dirname, "..");
   execFileSync(process.execPath, ["node_modules/vite/bin/vite.js", "build"], {
@@ -80,6 +74,9 @@ function button(text: string): HTMLButtonElement {
   return found!;
 }
 
+export interface specBindings {
+  browserNavigation: typeof browserNavigation;
+}
 async function browserNavigation() {
   await openApp();
   expect(document.querySelector("main h1")?.textContent).toContain(
@@ -103,6 +100,9 @@ async function browserNavigation() {
   );
 }
 
+export interface specBindings {
+  confirmedReset: typeof confirmedReset;
+}
 async function confirmedReset() {
   const seeded = seedWorkspace();
   const changed = {
@@ -128,6 +128,9 @@ async function confirmedReset() {
   );
 }
 
+export interface specBindings {
+  browserLocalData: typeof browserLocalData;
+}
 async function browserLocalData() {
   const fetch = vi.fn();
   const transmit = vi.fn();
@@ -176,6 +179,9 @@ async function browserLocalData() {
   expect(info).not.toHaveBeenCalled();
 }
 
+export interface specBindings {
+  preservedState: typeof preservedState;
+}
 async function preservedState() {
   await openApp();
   const saved = window.localStorage.getItem(storageKey);
@@ -210,6 +216,9 @@ async function preservedState() {
   expect(document.querySelector("tbody tr")!.textContent).toBe(row);
 }
 
+export interface specBindings {
+  loadingFailure: typeof loadingFailure;
+}
 async function loadingFailure() {
   vi.doMock(rendererUrl, () => {
     throw new Error("CDN offline");

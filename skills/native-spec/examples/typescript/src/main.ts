@@ -1,5 +1,3 @@
-import type { Bindings } from "../specs/definition/process.js";
-import type { InventoryDeskLinks } from "../specs/artifacts/architecture/003-inventory-desk.abb.js";
 import {
   availableFor,
   closeOrder,
@@ -14,30 +12,6 @@ import {
 import { exportWorkspace, importWorkspace, WorkspaceStore } from "./storage.js";
 import "./styles.css";
 
-export type specBindings = Bindings<
-  InventoryDeskLinks["contract"],
-  {
-    currentState: typeof currentState;
-    errorText: typeof errorText;
-    perform: typeof perform;
-    formValues: typeof formValues;
-    onRestock: typeof onRestock;
-    onReserve: typeof onReserve;
-    onCloseOrder: typeof onCloseOrder;
-    onNavigate: typeof onNavigate;
-    onSearch: typeof onSearch;
-    onReset: typeof onReset;
-    onExport: typeof onExport;
-    onImport: typeof onImport;
-    orderTable: typeof orderTable;
-    overviewPage: typeof overviewPage;
-    inventoryPage: typeof inventoryPage;
-    ordersPage: typeof ordersPage;
-    draw: typeof draw;
-    boot: typeof boot;
-  }
->;
-
 type View = "overview" | "inventory" | "orders";
 let html: typeof import("lit-html").html;
 let render: typeof import("lit-html").render;
@@ -51,6 +25,9 @@ let importing = false;
 const root = document.getElementById("app");
 if (!root) throw new Error("Stockroom mount point is missing.");
 
+export interface specBindings {
+  currentState: typeof currentState;
+}
 function currentState(): Workspace {
   if (!state)
     throw new Error(
@@ -59,10 +36,16 @@ function currentState(): Workspace {
   return state;
 }
 
+export interface specBindings {
+  errorText: typeof errorText;
+}
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+export interface specBindings {
+  perform: typeof perform;
+}
 function perform(operation: () => Workspace, message: string): void {
   try {
     if (!store)
@@ -82,6 +65,9 @@ function perform(operation: () => Workspace, message: string): void {
   draw();
 }
 
+export interface specBindings {
+  formValues: typeof formValues;
+}
 function formValues(event: Event): FormData {
   event.preventDefault();
   if (!(event.currentTarget instanceof HTMLFormElement))
@@ -89,6 +75,9 @@ function formValues(event: Event): FormData {
   return new FormData(event.currentTarget);
 }
 
+export interface specBindings {
+  onRestock: typeof onRestock;
+}
 function onRestock(event: Event): void {
   const form = formValues(event);
   perform(
@@ -102,6 +91,9 @@ function onRestock(event: Event): void {
   );
 }
 
+export interface specBindings {
+  onReserve: typeof onReserve;
+}
 function onReserve(event: Event): void {
   const form = formValues(event);
   perform(
@@ -120,6 +112,9 @@ function onReserve(event: Event): void {
   );
 }
 
+export interface specBindings {
+  onCloseOrder: typeof onCloseOrder;
+}
 function onCloseOrder(event: Event): void {
   const button = event.currentTarget;
   if (!(button instanceof HTMLButtonElement))
@@ -137,6 +132,9 @@ function onCloseOrder(event: Event): void {
   );
 }
 
+export interface specBindings {
+  onNavigate: typeof onNavigate;
+}
 function onNavigate(event: Event): void {
   const tab = event.currentTarget;
   if (!(tab instanceof HTMLButtonElement))
@@ -148,6 +146,9 @@ function onNavigate(event: Event): void {
   draw();
 }
 
+export interface specBindings {
+  onSearch: typeof onSearch;
+}
 function onSearch(event: Event): void {
   if (!(event.currentTarget instanceof HTMLInputElement))
     throw new Error("Expected a search input.");
@@ -155,6 +156,9 @@ function onSearch(event: Event): void {
   draw();
 }
 
+export interface specBindings {
+  onReset: typeof onReset;
+}
 function onReset(): void {
   if (
     window.confirm(
@@ -164,6 +168,9 @@ function onReset(): void {
     perform(seedWorkspace, "Demo reset. Sample inventory is ready.");
 }
 
+export interface specBindings {
+  onExport: typeof onExport;
+}
 function onExport(): void {
   try {
     const blob = new Blob([exportWorkspace(currentState())], {
@@ -184,6 +191,9 @@ function onExport(): void {
   draw();
 }
 
+export interface specBindings {
+  onImport: typeof onImport;
+}
 async function onImport(event: Event): Promise<void> {
   const input = event.currentTarget;
   if (!(input instanceof HTMLInputElement))
@@ -213,6 +223,9 @@ async function onImport(event: Event): Promise<void> {
   }
 }
 
+export interface specBindings {
+  orderTable: typeof orderTable;
+}
 function orderTable(workspace: Workspace, recent = false) {
   const orders = [...workspace.orders].sort((left, right) =>
     right.createdAt.localeCompare(left.createdAt),
@@ -280,6 +293,9 @@ function orderTable(workspace: Workspace, recent = false) {
       </div>`;
 }
 
+export interface specBindings {
+  overviewPage: typeof overviewPage;
+}
 function overviewPage(workspace: Workspace) {
   const summary = stockSummary(workspace);
   const low = workspace.products.filter(
@@ -335,6 +351,9 @@ function overviewPage(workspace: Workspace) {
     </section>`;
 }
 
+export interface specBindings {
+  inventoryPage: typeof inventoryPage;
+}
 function inventoryPage(workspace: Workspace) {
   const products = searchProducts(workspace, query);
   return html` <div class="page-heading">
@@ -410,6 +429,9 @@ function inventoryPage(workspace: Workspace) {
     </section>`;
 }
 
+export interface specBindings {
+  ordersPage: typeof ordersPage;
+}
 function ordersPage(workspace: Workspace) {
   return html` <div class="page-heading">
       <div>
@@ -468,6 +490,9 @@ function ordersPage(workspace: Workspace) {
     </section>`;
 }
 
+export interface specBindings {
+  draw: typeof draw;
+}
 function draw(): void {
   if (!root) throw new Error("Stockroom mount point is missing.");
   render(
@@ -545,6 +570,9 @@ function draw(): void {
   );
 }
 
+export interface specBindings {
+  boot: typeof boot;
+}
 async function boot(): Promise<void> {
   try {
     ({ html, render } =

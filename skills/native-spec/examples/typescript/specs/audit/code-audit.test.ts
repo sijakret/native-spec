@@ -302,70 +302,27 @@ describe("native implementation links", () => {
     try {
       const program = service.getProgram()!;
       const cases = [
-        [
-          "001-stock-domain.abb.ts",
-          "seedWorkspace",
-          "domain.ts",
-          ts.ScriptElementKind.functionElement,
-        ],
-        [
-          "001-stock-domain.abb.ts",
-          "record",
-          "domain.ts",
-          ts.ScriptElementKind.functionElement,
-        ],
-        [
-          "002-browser-storage.abb.ts",
-          "importWorkspace",
-          "storage.ts",
-          ts.ScriptElementKind.functionElement,
-        ],
-        [
-          "002-browser-storage.abb.ts",
-          "WorkspaceStore",
-          "storage.ts",
-          ts.ScriptElementKind.classElement,
-        ],
-        [
-          "002-browser-storage.abb.ts",
-          "load",
-          "storage.ts",
-          ts.ScriptElementKind.memberFunctionElement,
-        ],
-        [
-          "003-inventory-desk.abb.ts",
-          "perform",
-          "main.ts",
-          ts.ScriptElementKind.functionElement,
-        ],
+        ["domain.ts", "seedWorkspace", ts.ScriptElementKind.functionElement],
+        ["domain.ts", "record", ts.ScriptElementKind.functionElement],
+        ["storage.ts", "importWorkspace", ts.ScriptElementKind.functionElement],
+        ["storage.ts", "WorkspaceStore", ts.ScriptElementKind.classElement],
+        ["storage.ts", "load", ts.ScriptElementKind.memberFunctionElement],
+        ["main.ts", "perform", ts.ScriptElementKind.functionElement],
       ] as const;
-      for (const [artifact, name, implementation, kind] of cases) {
-        const file = resolve(root, "specs/artifacts/architecture", artifact);
+      for (const [implementation, name, kind] of cases) {
+        const file = resolve(root, "src", implementation);
         const source = program.getSourceFile(file)!;
         const slot = source.statements
           .filter(ts.isInterfaceDeclaration)
+          .filter((declaration) => declaration.name.text === "specBindings")
           .flatMap((declaration) => [...declaration.members])
-          .filter(ts.isPropertySignature)
-          .filter(
-            (member) =>
-              ts.isIdentifier(member.name) && member.name.text === "contract",
-          )
-          .flatMap((member) =>
-            member.type && ts.isTypeLiteralNode(member.type)
-              ? [...member.type.members]
-              : [],
-          )
           .filter(ts.isPropertySignature)
           .find(
             (member) =>
               ts.isIdentifier(member.name) && member.name.text === name,
           )!;
         expect(slot).toBeDefined();
-        const expected = {
-          fileName: resolve(root, "src", implementation),
-          name,
-          kind,
-        };
+        const expected = { fileName: file, name, kind };
         const destinations =
           service.getTypeDefinitionAtPosition(
             file,
@@ -378,24 +335,24 @@ describe("native implementation links", () => {
             kind,
           })),
         ).toContainEqual(expected);
-        const target =
-          slot.type && ts.isTypeReferenceNode(slot.type)
-            ? slot.type.typeArguments?.[0]
-            : undefined;
-        if (target && ts.isTypeQueryNode(target)) {
-          const definitions =
-            service.getDefinitionAtPosition(
-              file,
-              target.exprName.getEnd() - 1,
-            ) ?? [];
-          expect(
-            definitions.map(({ fileName, name, kind }) => ({
-              fileName,
-              name,
-              kind,
-            })),
-          ).toContainEqual(expected);
-        }
+      }
+      for (const [artifact, module] of [
+        ["001-stock-domain.abb.ts", "domain.ts"],
+        ["002-browser-storage.abb.ts", "storage.ts"],
+        ["003-inventory-desk.abb.ts", "main.ts"],
+      ] as const) {
+        const file = resolve(root, "specs/artifacts/architecture", artifact);
+        const text = program.getSourceFile(file)!.text;
+        const position = text.indexOf(".specBindings]") + 1;
+        expect(position).toBeGreaterThan(0);
+        expect(
+          service
+            .getDefinitionAtPosition(file, position)
+            ?.map(({ fileName, name }) => ({ fileName, name })),
+        ).toContainEqual({
+          fileName: resolve(root, "src", module),
+          name: "specBindings",
+        });
       }
       const requirementFile = resolve(
         root,

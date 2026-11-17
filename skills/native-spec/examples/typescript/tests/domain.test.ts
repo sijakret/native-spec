@@ -14,20 +14,9 @@ import {
 const date = "2026-10-29T10:00:00.000Z";
 const input = { customer: "Studio North", productId: "p-1", quantity: 3 };
 
-export type specBindings = {
+export interface specBindings {
   seededInventory: typeof seededInventory;
-  reservations: typeof reservations;
-  restocking: typeof restocking;
-  invalidQuantities: typeof invalidQuantities;
-  overselling: typeof overselling;
-  fulfillments: typeof fulfillments;
-  cancellations: typeof cancellations;
-  validOrders: typeof validOrders;
-  aggregateReservations: typeof aggregateReservations;
-  malformedInventory: typeof malformedInventory;
-  importedOrders: typeof importedOrders;
-};
-
+}
 function seededInventory() {
   const state = seedWorkspace();
   expect(validateWorkspace(state)).toEqual(state);
@@ -43,6 +32,9 @@ function seededInventory() {
   });
 }
 
+export interface specBindings {
+  reservations: typeof reservations;
+}
 function reservations() {
   const original = seedWorkspace();
   const state = reserveOrder(original, input, "o-1", date);
@@ -53,6 +45,9 @@ function reservations() {
   expect(stockSummary(state).openOrders).toBe(1);
 }
 
+export interface specBindings {
+  restocking: typeof restocking;
+}
 function restocking() {
   const state = seedWorkspace();
   expect(restock(state, "p-3", 5).products[2]?.onHand).toBe(9);
@@ -67,6 +62,9 @@ function restocking() {
   );
 }
 
+export interface specBindings {
+  invalidQuantities: typeof invalidQuantities;
+}
 function invalidQuantities(quantity: number) {
   const state = seedWorkspace();
   const copy = JSON.stringify(state);
@@ -77,6 +75,9 @@ function invalidQuantities(quantity: number) {
   expect(JSON.stringify(state)).toBe(copy);
 }
 
+export interface specBindings {
+  overselling: typeof overselling;
+}
 function overselling() {
   const first = reserveOrder(
     seedWorkspace(),
@@ -94,6 +95,9 @@ function overselling() {
   ).toThrow("Only 0 units");
 }
 
+export interface specBindings {
+  fulfillments: typeof fulfillments;
+}
 function fulfillments() {
   const first = reserveOrder(seedWorkspace(), input, "o-1", date);
   const second = reserveOrder(first, { ...input, quantity: 2 }, "o-2", date);
@@ -106,6 +110,9 @@ function fulfillments() {
   expect(() => closeOrder(state, "o-1", "cancelled")).toThrow("already closed");
 }
 
+export interface specBindings {
+  cancellations: typeof cancellations;
+}
 function cancellations() {
   const reserved = reserveOrder(seedWorkspace(), input, "o-1", date);
   const cancelled = closeOrder(reserved, "o-1", "cancelled");
@@ -119,6 +126,9 @@ function cancellations() {
   );
 }
 
+export interface specBindings {
+  validOrders: typeof validOrders;
+}
 function validOrders() {
   const state = reserveOrder(seedWorkspace(), input, "o-1", date);
   expect(() => reserveOrder(state, input, "o-1", date)).toThrow(
@@ -132,6 +142,9 @@ function validOrders() {
   );
 }
 
+export interface specBindings {
+  aggregateReservations: typeof aggregateReservations;
+}
 function aggregateReservations() {
   const state = reserveOrder(seedWorkspace(), input, "o-1", date);
   expect(() =>
@@ -145,10 +158,16 @@ function aggregateReservations() {
   ).toThrow("Reservations exceed stock");
 }
 
+export interface specBindings {
+  malformedInventory: typeof malformedInventory;
+}
 function malformedInventory(value: unknown) {
   expect(() => validateWorkspace(value)).toThrow();
 }
 
+export interface specBindings {
+  importedOrders: typeof importedOrders;
+}
 function importedOrders() {
   const state = reserveOrder(seedWorkspace(), input, "o-1", date);
   for (const patch of [

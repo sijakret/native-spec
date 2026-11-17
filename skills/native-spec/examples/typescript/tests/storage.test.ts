@@ -7,17 +7,6 @@ import {
   WorkspaceStore,
 } from "../src/storage.js";
 
-export type specBindings = {
-  suite: typeof storageSuite;
-  persistedOrders: typeof persistedOrders;
-  jsonRoundTrip: typeof jsonRoundTrip;
-  invalidSavedData: typeof invalidSavedData;
-  staleTabs: typeof staleTabs;
-  failedWrites: typeof failedWrites;
-  disabledStorage: typeof disabledStorage;
-  validatedWrites: typeof validatedWrites;
-};
-
 let data: Map<string, string>;
 const storage = {
   getItem: vi.fn((key: string) => data.get(key) ?? null),
@@ -26,6 +15,9 @@ const storage = {
   }),
 };
 
+export interface specBindings {
+  persistedOrders: typeof persistedOrders;
+}
 function persistedOrders() {
   const store = new WorkspaceStore(storage);
   const seed = store.load();
@@ -40,6 +32,9 @@ function persistedOrders() {
   expect(storage.setItem).toHaveBeenCalledTimes(2);
 }
 
+export interface specBindings {
+  jsonRoundTrip: typeof jsonRoundTrip;
+}
 function jsonRoundTrip() {
   expect(importWorkspace(exportWorkspace(seedWorkspace()))).toEqual(
     seedWorkspace(),
@@ -48,6 +43,9 @@ function jsonRoundTrip() {
   expect(importWorkspace(JSON.stringify(value))).not.toHaveProperty("injected");
 }
 
+export interface specBindings {
+  invalidSavedData: typeof invalidSavedData;
+}
 function invalidSavedData() {
   data.set(storageKey, "{broken");
   const store = new WorkspaceStore(storage);
@@ -58,6 +56,9 @@ function invalidSavedData() {
   expect(new WorkspaceStore(storage).load()).toEqual(seedWorkspace());
 }
 
+export interface specBindings {
+  staleTabs: typeof staleTabs;
+}
 function staleTabs() {
   const first = new WorkspaceStore(storage);
   const second = new WorkspaceStore(storage);
@@ -76,6 +77,9 @@ function staleTabs() {
   expect(data.get(storageKey)).toBe(saved);
 }
 
+export interface specBindings {
+  failedWrites: typeof failedWrites;
+}
 function failedWrites() {
   const store = new WorkspaceStore(storage);
   const state = store.load();
@@ -88,6 +92,9 @@ function failedWrites() {
   expect(() => store.save(state)).not.toThrow();
 }
 
+export interface specBindings {
+  disabledStorage: typeof disabledStorage;
+}
 function disabledStorage() {
   storage.getItem.mockImplementationOnce(() => {
     throw new Error("Storage blocked");
@@ -98,6 +105,9 @@ function disabledStorage() {
   );
 }
 
+export interface specBindings {
+  validatedWrites: typeof validatedWrites;
+}
 function validatedWrites() {
   const store = new WorkspaceStore(storage);
   store.load();
@@ -111,6 +121,9 @@ function validatedWrites() {
   expect(data.get(storageKey)).toBe(saved);
 }
 
+export interface specBindings {
+  suite: typeof storageSuite;
+}
 function storageSuite() {
   beforeEach(() => {
     data = new Map();

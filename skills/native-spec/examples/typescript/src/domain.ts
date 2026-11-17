@@ -1,27 +1,3 @@
-import type { Bindings } from "../specs/definition/process.js";
-import type { StockDomainLinks } from "../specs/artifacts/architecture/001-stock-domain.abb.js";
-
-export type specBindings = Bindings<
-  StockDomainLinks["contract"],
-  {
-    seedWorkspace: typeof seedWorkspace;
-    quantity: typeof quantity;
-    validateWorkspace: typeof validateWorkspace;
-    reservedFor: typeof reservedFor;
-    availableFor: typeof availableFor;
-    restock: typeof restock;
-    reserveOrder: typeof reserveOrder;
-    closeOrder: typeof closeOrder;
-    searchProducts: typeof searchProducts;
-    stockSummary: typeof stockSummary;
-    record: typeof record;
-    text: typeof text;
-    parseProduct: typeof parseProduct;
-    parseOrder: typeof parseOrder;
-    unique: typeof unique;
-  }
->;
-
 export interface Product {
   readonly id: string;
   readonly sku: string;
@@ -45,6 +21,9 @@ export interface Workspace {
   readonly orders: readonly Order[];
 }
 
+export interface specBindings {
+  seedWorkspace: typeof seedWorkspace;
+}
 export function seedWorkspace(): Workspace {
   return {
     version: 1,
@@ -82,18 +61,27 @@ export function seedWorkspace(): Workspace {
   };
 }
 
+export interface specBindings {
+  record: typeof record;
+}
 function record(value: unknown): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value))
     throw new Error("Expected an object.");
   return value as Record<string, unknown>;
 }
 
+export interface specBindings {
+  text: typeof text;
+}
 function text(value: unknown, label: string): string {
   if (typeof value !== "string" || !value.trim() || value.length > 120)
     throw new Error(`${label} must contain 1-120 characters.`);
   return value.trim();
 }
 
+export interface specBindings {
+  quantity: typeof quantity;
+}
 export function quantity(
   value: unknown,
   label = "Quantity",
@@ -110,6 +98,9 @@ export function quantity(
   return value;
 }
 
+export interface specBindings {
+  parseProduct: typeof parseProduct;
+}
 function parseProduct(value: unknown): Product {
   const item = record(value);
   return {
@@ -121,6 +112,9 @@ function parseProduct(value: unknown): Product {
   };
 }
 
+export interface specBindings {
+  parseOrder: typeof parseOrder;
+}
 function parseOrder(value: unknown): Order {
   const item = record(value);
   const status = item.status;
@@ -142,11 +136,17 @@ function parseOrder(value: unknown): Order {
   };
 }
 
+export interface specBindings {
+  unique: typeof unique;
+}
 function unique(values: readonly string[], label: string): void {
   if (new Set(values).size !== values.length)
     throw new Error(`Duplicate ${label}.`);
 }
 
+export interface specBindings {
+  validateWorkspace: typeof validateWorkspace;
+}
 export function validateWorkspace(value: unknown): Workspace {
   const data = record(value);
   if (
@@ -188,6 +188,9 @@ export function validateWorkspace(value: unknown): Workspace {
   return state;
 }
 
+export interface specBindings {
+  reservedFor: typeof reservedFor;
+}
 export function reservedFor(state: Workspace, productId: string): number {
   return state.orders
     .filter(
@@ -196,10 +199,16 @@ export function reservedFor(state: Workspace, productId: string): number {
     .reduce((sum, order) => sum + order.quantity, 0);
 }
 
+export interface specBindings {
+  availableFor: typeof availableFor;
+}
 export function availableFor(state: Workspace, product: Product): number {
   return product.onHand - reservedFor(state, product.id);
 }
 
+export interface specBindings {
+  restock: typeof restock;
+}
 export function restock(
   state: Workspace,
   productId: string,
@@ -218,6 +227,9 @@ export function restock(
   });
 }
 
+export interface specBindings {
+  reserveOrder: typeof reserveOrder;
+}
 export function reserveOrder(
   state: Workspace,
   input: { customer: string; productId: string; quantity: number },
@@ -237,6 +249,9 @@ export function reserveOrder(
   return validateWorkspace({ ...state, orders: [...state.orders, order] });
 }
 
+export interface specBindings {
+  closeOrder: typeof closeOrder;
+}
 export function closeOrder(
   state: Workspace,
   orderId: string,
@@ -259,6 +274,9 @@ export function closeOrder(
   });
 }
 
+export interface specBindings {
+  searchProducts: typeof searchProducts;
+}
 export function searchProducts(
   state: Workspace,
   query: string,
@@ -269,6 +287,9 @@ export function searchProducts(
   );
 }
 
+export interface specBindings {
+  stockSummary: typeof stockSummary;
+}
 export function stockSummary(state: Workspace) {
   const onHand = state.products.reduce(
     (sum, product) => sum + product.onHand,

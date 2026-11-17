@@ -1,8 +1,6 @@
 import {
   figure,
   implementsRequirement,
-  type Bindings,
-  type Callable,
   type Implementation,
 } from "../../definition/process.js";
 import type * as desk from "../../../src/main.js";
@@ -37,35 +35,10 @@ export const inventoryDesk = artifact.architectureBlock({
   files: ["src/styles.css", "src/cdn.d.ts"],
 });
 
-export interface InventoryDeskLinks extends Implementation<
+export type InventoryDeskLinks = Implementation<
   typeof inventoryDesk,
-  [typeof desk]
-> {
-  readonly contract: {
-    currentState: Callable<desk.specBindings["currentState"]>;
-    errorText: Callable<desk.specBindings["errorText"]>;
-    perform: Callable<desk.specBindings["perform"]>;
-    formValues: Callable<desk.specBindings["formValues"]>;
-    onRestock: Callable<desk.specBindings["onRestock"]>;
-    onReserve: Callable<desk.specBindings["onReserve"]>;
-    onCloseOrder: Callable<desk.specBindings["onCloseOrder"]>;
-    onNavigate: Callable<desk.specBindings["onNavigate"]>;
-    onSearch: Callable<desk.specBindings["onSearch"]>;
-    onReset: Callable<desk.specBindings["onReset"]>;
-    onExport: Callable<desk.specBindings["onExport"]>;
-    onImport: Callable<desk.specBindings["onImport"]>;
-    orderTable: Callable<desk.specBindings["orderTable"]>;
-    overviewPage: Callable<desk.specBindings["overviewPage"]>;
-    inventoryPage: Callable<desk.specBindings["inventoryPage"]>;
-    ordersPage: Callable<desk.specBindings["ordersPage"]>;
-    draw: Callable<desk.specBindings["draw"]>;
-    boot: Callable<desk.specBindings["boot"]>;
-  };
-  readonly specBindings: Bindings<
-    InventoryDeskLinks["contract"],
-    desk.specBindings
-  >;
-}
+  [typeof desk, desk.specBindings]
+>;
 
 export const inventoryDeskRelations = [
   implementsRequirement(inventoryDesk, inventory),
